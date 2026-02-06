@@ -19,8 +19,8 @@
     "pitchDown": "ArrowDown",
     "rollLeft": "KeyA",
     "rollRight": "KeyD",
-    "yawLeft": "KeyQ",
-    "yawRight": "KeyE",
+    "yawLeft": "KeyE",
+    "yawRight": "KeyQ",
     "throttleUp": "KeyW",
     "throttleDown": "KeyS",
     "pause": "Escape"

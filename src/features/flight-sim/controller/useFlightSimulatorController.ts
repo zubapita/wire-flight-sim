@@ -24,8 +24,8 @@ const KEY_BINDINGS: Record<string, keyof InputState> = {
   ArrowDown: "pitchDown",
   KeyA: "rollLeft",
   KeyD: "rollRight",
-  KeyQ: "yawLeft",
-  KeyE: "yawRight",
+  KeyQ: "yawRight",
+  KeyE: "yawLeft",
   KeyW: "throttleUp",
   KeyS: "throttleDown",
 };
