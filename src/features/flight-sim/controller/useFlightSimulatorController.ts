@@ -7,9 +7,9 @@ import {
 } from "@/features/flight-sim/model/flightModel";
 import {
   createBootstrapTerrain,
-  loadTerrainFromUrl,
   TerrainMesh,
 } from "@/features/flight-sim/model/terrainModel";
+import { createTerrainStreamingSession } from "@/features/flight-sim/model/terrainStreamingModel";
 import {
   createDefaultSettings,
   loadSettings,
@@ -116,6 +116,8 @@ export function useFlightSimulatorController(
   );
   const [terrainLoadErrorMessage, setTerrainLoadErrorMessage] = useState<string | null>(null);
   const terrainRequestSeqRef = useRef(0);
+  const terrainStreamRef = useRef(createTerrainStreamingSession());
+  const flightPositionRef = useRef<FlightState["position"]>(flightState.position);
 
   const updateSettings = useCallback((nextSettings: SimulatorSettings) => {
     const validated = validateSettings(nextSettings);
@@ -136,7 +138,8 @@ export function useFlightSimulatorController(
   }, []);
 
   const startTerrainLoad = useCallback((requestId: number) => {
-    loadTerrainFromUrl("/terrain/sample_tokyo_wireframe.json")
+    terrainStreamRef.current
+      .bootstrap(settings.graphicsQuality)
       .then((loadedTerrain) => {
         if (terrainRequestSeqRef.current !== requestId) {
           return;
@@ -144,6 +147,7 @@ export function useFlightSimulatorController(
         setTerrain(loadedTerrain);
         setSafeModeActive(false);
         setTerrainLoadStatus("ready");
+        setTerrainLoadErrorMessage(null);
       })
       .catch((error: unknown) => {
         if (terrainRequestSeqRef.current !== requestId) {
@@ -154,10 +158,11 @@ export function useFlightSimulatorController(
         setTerrainLoadErrorMessage(message);
         console.error("Failed to load terrain data:", error);
       });
-  }, []);
+  }, [settings.graphicsQuality]);
 
   const enterSafeMode = useCallback(() => {
     terrainRequestSeqRef.current += 1;
+    terrainStreamRef.current.clear();
     setSafeModeActive(true);
     setTerrain(fallbackTerrain);
     setTerrainLoadStatus("ready");
@@ -240,6 +245,43 @@ export function useFlightSimulatorController(
     terrainRequestSeqRef.current = requestId;
     startTerrainLoad(requestId);
   }, [safeModeActive, startTerrainLoad]);
+
+  useEffect(() => {
+    flightPositionRef.current = flightState.position;
+  }, [flightState.position]);
+
+  useEffect(() => {
+    if (safeModeActive || terrainLoadStatus !== "ready") {
+      return;
+    }
+
+    let active = true;
+    const intervalId = window.setInterval(() => {
+      terrainStreamRef.current
+        .refreshAroundFlight(
+          {
+            x: flightPositionRef.current.x,
+            y: flightPositionRef.current.y,
+            z: flightPositionRef.current.z,
+          },
+          settings.graphicsQuality,
+        )
+        .then((nextTerrain) => {
+          if (!active || !nextTerrain) {
+            return;
+          }
+          setTerrain(nextTerrain);
+        })
+        .catch((error) => {
+          console.warn("Terrain chunk refresh failed:", error);
+        });
+    }, 1200);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [safeModeActive, terrainLoadStatus, settings.graphicsQuality]);
 
   useEffect(() => {
     let rafId = 0;

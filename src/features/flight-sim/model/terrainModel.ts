@@ -15,7 +15,7 @@ export type TerrainMesh = {
   layers: TerrainLayerMesh[];
 };
 
-type RawTerrainData = {
+export type RawTerrainData = {
   vertices: number[][];
   edges: number[][];
   faces?: number[][];
@@ -178,7 +178,7 @@ function normalizeFaces(rawFaces: number[][]): Array<[number, number, number]> {
     .map((face) => [face[0], face[1], face[2]] as [number, number, number]);
 }
 
-function mapRawTerrainData(raw: RawTerrainData): TerrainMesh {
+export function mapRawTerrainData(raw: RawTerrainData): TerrainMesh {
   const rawVertices = Array.isArray(raw.vertices) ? raw.vertices : [];
   const isGeographic = detectGeographicCoordinates(rawVertices);
 
@@ -257,6 +257,98 @@ export async function loadTerrainFromUrl(url: string): Promise<TerrainMesh> {
 
   const raw = (await response.json()) as RawTerrainData;
   return mapRawTerrainData(raw);
+}
+
+export function mergeTerrainMeshes(meshes: TerrainMesh[]): TerrainMesh {
+  if (meshes.length === 0) {
+    return createBootstrapTerrain();
+  }
+
+  const vertices: Vec3[] = [];
+  const edges: Array<[number, number]> = [];
+  const faces: Array<[number, number, number]> = [];
+  const layersById = new Map<TerrainLayerId, TerrainLayerMesh>();
+  const edgeKeys = new Set<string>();
+  const faceKeys = new Set<string>();
+
+  for (const mesh of meshes) {
+    const offset = vertices.length;
+    vertices.push(...mesh.vertices);
+
+    for (const [a, b] of mesh.edges) {
+      const edge: [number, number] = [a + offset, b + offset];
+      const key = edge[0] < edge[1] ? `${edge[0]}:${edge[1]}` : `${edge[1]}:${edge[0]}`;
+      if (edgeKeys.has(key)) {
+        continue;
+      }
+      edgeKeys.add(key);
+      edges.push(edge);
+    }
+
+    for (const [a, b, c] of mesh.faces) {
+      const face: [number, number, number] = [a + offset, b + offset, c + offset];
+      const key = [...face].sort((x, y) => x - y).join(":");
+      if (faceKeys.has(key)) {
+        continue;
+      }
+      faceKeys.add(key);
+      faces.push(face);
+    }
+
+    for (const layer of mesh.layers) {
+      const existing = layersById.get(layer.id) ?? { id: layer.id, edges: [], faces: [] };
+      for (const [a, b] of layer.edges) {
+        const edge: [number, number] = [a + offset, b + offset];
+        existing.edges.push(edge);
+      }
+      for (const [a, b, c] of layer.faces) {
+        const face: [number, number, number] = [a + offset, b + offset, c + offset];
+        existing.faces.push(face);
+      }
+      layersById.set(layer.id, existing);
+    }
+  }
+
+  return {
+    vertices,
+    edges,
+    faces,
+    layers: Array.from(layersById.values()),
+  };
+}
+
+export function limitTerrainEdges(mesh: TerrainMesh, maxEdges: number): TerrainMesh {
+  if (maxEdges <= 0 || mesh.edges.length <= maxEdges) {
+    return mesh;
+  }
+
+  const stride = Math.max(1, Math.ceil(mesh.edges.length / maxEdges));
+  const selectedEdges: Array<[number, number]> = [];
+  for (let i = 0; i < mesh.edges.length; i += stride) {
+    selectedEdges.push(mesh.edges[i]);
+  }
+
+  const layerEdgeMap = new Map<string, true>();
+  for (const [a, b] of selectedEdges) {
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    layerEdgeMap.set(key, true);
+  }
+
+  const layers = mesh.layers.map((layer) => ({
+    id: layer.id,
+    edges: layer.edges.filter(([a, b]) => {
+      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      return layerEdgeMap.has(key);
+    }),
+    faces: layer.faces,
+  }));
+
+  return {
+    vertices: mesh.vertices,
+    edges: selectedEdges,
+    faces: mesh.faces,
+    layers,
+  };
 }
 
 export function createBootstrapTerrain(): TerrainMesh {

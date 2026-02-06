@@ -316,3 +316,49 @@ body {
 .terrain-safe-button:hover {
   background: #6f4c14;
 }
+
+.license-layer {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 45;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.license-fab {
+  border: 1px solid rgba(148, 227, 255, 0.7);
+  background: rgba(7, 31, 46, 0.9);
+  color: #d7f4ff;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.license-fab:hover {
+  background: rgba(12, 47, 67, 0.92);
+}
+
+.license-panel {
+  width: min(88vw, 360px);
+  border: 1px solid rgba(148, 227, 255, 0.6);
+  background: rgba(6, 21, 32, 0.95);
+  color: #d8f4ff;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.license-panel h3,
+.license-panel p {
+  margin: 0;
+}
+
+.license-panel a {
+  color: #97d6ff;
+}

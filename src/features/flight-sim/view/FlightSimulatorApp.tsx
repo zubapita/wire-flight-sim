@@ -3,6 +3,7 @@
 import { useFlightSimulatorController } from "@/features/flight-sim/controller/useFlightSimulatorController";
 import { FlightSceneView } from "@/features/flight-sim/view/FlightSceneView";
 import { HudView } from "@/features/flight-sim/view/HudView";
+import { LicensePanelView } from "@/features/flight-sim/view/LicensePanelView";
 import { PauseMenuView } from "@/features/flight-sim/view/PauseMenuView";
 import { TerrainStatusOverlayView } from "@/features/flight-sim/view/TerrainStatusOverlayView";
 
@@ -59,6 +60,7 @@ export function FlightSimulatorApp({ initialSafeMode }: Props) {
         onResetSettings={resetSettings}
         settingsErrorMessage={settingsErrorMessage}
       />
+      <LicensePanelView open={showLicense} onToggle={toggleLicensePanel} />
       <TerrainStatusOverlayView
         safeModeActive={safeModeActive}
         status={terrainLoadStatus}

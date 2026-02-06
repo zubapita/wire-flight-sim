@@ -14,12 +14,16 @@ Response 200:
 {
   "version": "2026-02-07",
   "city": "tokyo",
+  "source": "plateau-13103-minato-ku-2023-v4-real",
+  "bootstrapChunkIds": ["tokyo_0_0", "tokyo_0_1"],
   "chunks": [
     {
-      "chunkId": "tokyo_central_12_3456_7890",
-      "lod": 2,
+      "chunkId": "tokyo_0_0",
+      "lod": 0,
+      "gridX": 0,
+      "gridZ": 0,
       "bbox": { "minX": 0, "minY": 0, "minZ": 0, "maxX": 0, "maxY": 0, "maxZ": 0 },
-      "url": "/terrain/tokyo_central_12_3456_7890.json"
+      "url": "/api/terrain/chunk/tokyo_0_0"
     }
   ]
 }
@@ -37,11 +41,18 @@ Path Params:
 Response 200:
 ```json
 {
-  "chunkId": "tokyo_central_12_3456_7890",
+  "chunkId": "tokyo_0_0",
   "lod": 2,
-  "vertices": [0, 0, 0],
-  "indices": [0, 1, 2],
-  "edges": [[0, 1], [1, 2], [2, 0]]
+  "bbox": { "minX": 0, "minY": 0, "minZ": 0, "maxX": 0, "maxY": 0, "maxZ": 0 },
+  "vertices": [[0, 0, 0]],
+  "edges": [[0, 1], [1, 2], [2, 0]],
+  "faces": [[0, 1, 2]],
+  "layers": {
+    "building": {
+      "edges": [[0, 1]],
+      "faces": [[0, 1, 2]]
+    }
+  }
 }
 ```
 

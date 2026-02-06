@@ -101,3 +101,9 @@
   - `4` JSONパース失敗
   - `5` 変換失敗
   - `6` 出力書込失敗
+
+## 11. Phase 3 実装メモ（2026-02-07）
+- `GET /api/terrain/manifest` / `GET /api/terrain/chunk/:chunkId` を追加し、起動時はマニフェスト＋ブートストラップチャンクのみ取得
+- Client Model `terrainStreamingModel` で IndexedDB キャッシュ（上限: 48件 / 25MB）を管理
+- `graphicsQuality` に応じて LOD（遠景LOD2の除外）と線分上限（Low 5000 / Medium 11000 / High 18000）を適用
+- マニフェスト受信後に低LOD優先で先読み（最大6チャンク）をバックグラウンド実行

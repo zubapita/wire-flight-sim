@@ -34,6 +34,11 @@
   - `RESET DEFAULTS`
 - `LICENSE` 展開時: PLATEAU出典とリンク表示
 
+### License Access（常設）
+- 右下に常設 `LICENSE` ボタンを配置
+- 飛行中でも `LICENSE` パネルを開閉できる（Pause不要）
+- 表示内容: 出典文言 / PLATEAUリンク / ローカル利用アセットパス
+
 ## 3. 視覚デザイン
 - 背景: 黒系
 - 線色: シアン/グリーン基調（レトロCRT風）
