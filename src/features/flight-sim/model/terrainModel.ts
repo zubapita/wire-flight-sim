@@ -1,15 +1,31 @@
 import { Vec3 } from "@/features/flight-sim/types/flightTypes";
 
+export type TerrainLayerId = "building" | "road" | "bridge" | "railway" | "water" | "ground" | "other";
+
+export type TerrainLayerMesh = {
+  id: TerrainLayerId;
+  edges: Array<[number, number]>;
+  faces: Array<[number, number, number]>;
+};
+
 export type TerrainMesh = {
   vertices: Vec3[];
   edges: Array<[number, number]>;
   faces: Array<[number, number, number]>;
+  layers: TerrainLayerMesh[];
 };
 
 type RawTerrainData = {
   vertices: number[][];
   edges: number[][];
   faces?: number[][];
+  layers?: Record<
+    string,
+    {
+      edges?: number[][];
+      faces?: number[][];
+    }
+  >;
 };
 
 function normalizeEdge(edge: number[]): [number, number] | null {
@@ -133,6 +149,35 @@ function deriveFacesFromEdges(vertexCount: number, edges: Array<[number, number]
   return faces;
 }
 
+function normalizeLayerId(layerName: string): TerrainLayerId {
+  const value = layerName.toLowerCase();
+  if (value === "building") {
+    return "building";
+  }
+  if (value === "road") {
+    return "road";
+  }
+  if (value === "bridge") {
+    return "bridge";
+  }
+  if (value === "railway" || value === "rail") {
+    return "railway";
+  }
+  if (value === "water") {
+    return "water";
+  }
+  if (value === "ground") {
+    return "ground";
+  }
+  return "other";
+}
+
+function normalizeFaces(rawFaces: number[][]): Array<[number, number, number]> {
+  return rawFaces
+    .filter((face) => face.length >= 3)
+    .map((face) => [face[0], face[1], face[2]] as [number, number, number]);
+}
+
 function mapRawTerrainData(raw: RawTerrainData): TerrainMesh {
   const rawVertices = Array.isArray(raw.vertices) ? raw.vertices : [];
   const isGeographic = detectGeographicCoordinates(rawVertices);
@@ -172,12 +217,36 @@ function mapRawTerrainData(raw: RawTerrainData): TerrainMesh {
     .filter((edge): edge is [number, number] => edge !== null);
 
   const faces = Array.isArray(raw.faces)
-    ? raw.faces
-        .filter((face) => face.length >= 3)
-        .map((face) => [face[0], face[1], face[2]] as [number, number, number])
+    ? normalizeFaces(raw.faces)
     : deriveFacesFromEdges(vertices.length, edges);
 
-  return { vertices, edges, faces };
+  const layers: TerrainLayerMesh[] = [];
+  const rawLayers = raw.layers;
+
+  if (rawLayers && typeof rawLayers === "object") {
+    for (const [layerName, layerData] of Object.entries(rawLayers)) {
+      const layerEdges = (Array.isArray(layerData?.edges) ? layerData.edges : [])
+        .map(normalizeEdge)
+        .filter((edge): edge is [number, number] => edge !== null);
+      const layerFaces = normalizeFaces(Array.isArray(layerData?.faces) ? layerData.faces : []);
+
+      layers.push({
+        id: normalizeLayerId(layerName),
+        edges: layerEdges,
+        faces: layerFaces,
+      });
+    }
+  }
+
+  if (layers.length === 0) {
+    layers.push({
+      id: "other",
+      edges,
+      faces,
+    });
+  }
+
+  return { vertices, edges, faces, layers };
 }
 
 export async function loadTerrainFromUrl(url: string): Promise<TerrainMesh> {
@@ -209,5 +278,16 @@ export function createBootstrapTerrain(): TerrainMesh {
     edges.push([vertices.length - 2, vertices.length - 1]);
   }
 
-  return { vertices, edges, faces: [] };
+  return {
+    vertices,
+    edges,
+    faces: [],
+    layers: [
+      {
+        id: "ground",
+        edges,
+        faces: [],
+      },
+    ],
+  };
 }

@@ -87,6 +87,7 @@
   - `vertexCount` / `edgeCount`
   - `vertices: number[][]`
   - `edges: number[][]`
+  - `layers: Record<string, { edges: number[][]; faces: number[][] }>`
 - 変換規則:
   - 頂点は小数桁丸め（`--decimals`）後に重複排除
   - エッジは無向辺として正規化し重複排除

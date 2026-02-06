@@ -3,17 +3,71 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { FlightState } from "@/features/flight-sim/types/flightTypes";
-import { TerrainMesh } from "@/features/flight-sim/model/terrainModel";
+import { TerrainLayerId, TerrainMesh } from "@/features/flight-sim/model/terrainModel";
 
 type Props = {
   flightState: FlightState;
   terrain: TerrainMesh;
 };
 
-function createTerrainLineSegments(terrain: TerrainMesh): THREE.LineSegments {
+type LayerStyle = {
+  lineColor: number;
+  lineOpacity: number;
+  surfaceColor: number;
+  surfaceOpacity: number;
+};
+
+const DEFAULT_LAYER_STYLE: LayerStyle = {
+  lineColor: 0x7affde,
+  lineOpacity: 0.88,
+  surfaceColor: 0x2a5b42,
+  surfaceOpacity: 0.3,
+};
+
+const LAYER_STYLES: Record<TerrainLayerId, LayerStyle> = {
+  building: {
+    lineColor: 0x86ffda,
+    lineOpacity: 0.9,
+    surfaceColor: 0x3f6b5d,
+    surfaceOpacity: 0.6,
+  },
+  road: {
+    lineColor: 0x9ec8ff,
+    lineOpacity: 0.85,
+    surfaceColor: 0x2b3752,
+    surfaceOpacity: 0.24,
+  },
+  bridge: {
+    lineColor: 0xffcf8a,
+    lineOpacity: 0.92,
+    surfaceColor: 0x6b5330,
+    surfaceOpacity: 0.55,
+  },
+  railway: {
+    lineColor: 0xffa4a4,
+    lineOpacity: 0.88,
+    surfaceColor: 0x6d3030,
+    surfaceOpacity: 0.35,
+  },
+  water: {
+    lineColor: 0x79d0ff,
+    lineOpacity: 0.92,
+    surfaceColor: 0x16557d,
+    surfaceOpacity: 0.46,
+  },
+  ground: {
+    lineColor: 0x33515b,
+    lineOpacity: 0.48,
+    surfaceColor: 0x1f312f,
+    surfaceOpacity: 0.2,
+  },
+  other: DEFAULT_LAYER_STYLE,
+};
+
+function createTerrainLineSegments(terrain: TerrainMesh, edges: Array<[number, number]>, lineColor: number, lineOpacity: number): THREE.LineSegments {
   const points: number[] = [];
 
-  for (const [a, b] of terrain.edges) {
+  for (const [a, b] of edges) {
     const from = terrain.vertices[a];
     const to = terrain.vertices[b];
     if (!from || !to) {
@@ -25,12 +79,17 @@ function createTerrainLineSegments(terrain: TerrainMesh): THREE.LineSegments {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
 
-  const material = new THREE.LineBasicMaterial({ color: 0x7affde, transparent: true, opacity: 0.88 });
+  const material = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: lineOpacity });
   return new THREE.LineSegments(geometry, material);
 }
 
-function createTerrainSurfaceMesh(terrain: TerrainMesh): THREE.Mesh | null {
-  if (terrain.faces.length === 0) {
+function createTerrainSurfaceMesh(
+  terrain: TerrainMesh,
+  faces: Array<[number, number, number]>,
+  surfaceColor: number,
+  surfaceOpacity: number,
+): THREE.Mesh | null {
+  if (faces.length === 0) {
     return null;
   }
 
@@ -40,7 +99,7 @@ function createTerrainSurfaceMesh(terrain: TerrainMesh): THREE.Mesh | null {
   }
 
   const indices: number[] = [];
-  for (const [a, b, c] of terrain.faces) {
+  for (const [a, b, c] of faces) {
     if (!terrain.vertices[a] || !terrain.vertices[b] || !terrain.vertices[c]) {
       continue;
     }
@@ -57,11 +116,11 @@ function createTerrainSurfaceMesh(terrain: TerrainMesh): THREE.Mesh | null {
   geometry.computeVertexNormals();
 
   const material = new THREE.MeshStandardMaterial({
-    color: 0x2a5b42,
+    color: surfaceColor,
     roughness: 0.92,
     metalness: 0.04,
     transparent: true,
-    opacity: 0.65,
+    opacity: surfaceOpacity,
     side: THREE.DoubleSide,
   });
 
@@ -91,13 +150,21 @@ export function FlightSceneView({ flightState, terrain }: Props) {
     rendererRef.current = renderer;
     mount.appendChild(renderer.domElement);
 
-    const terrainSurface = createTerrainSurfaceMesh(terrain);
-    if (terrainSurface) {
-      scene.add(terrainSurface);
-    }
+    const disposables: Array<THREE.LineSegments | THREE.Mesh> = [];
+    const layers = terrain.layers.length > 0 ? terrain.layers : [{ id: "other" as const, edges: terrain.edges, faces: terrain.faces }];
 
-    const terrainLines = createTerrainLineSegments(terrain);
-    scene.add(terrainLines);
+    for (const layer of layers) {
+      const style = LAYER_STYLES[layer.id] ?? DEFAULT_LAYER_STYLE;
+      const layerSurface = createTerrainSurfaceMesh(terrain, layer.faces, style.surfaceColor, style.surfaceOpacity);
+      if (layerSurface) {
+        scene.add(layerSurface);
+        disposables.push(layerSurface);
+      }
+
+      const layerLines = createTerrainLineSegments(terrain, layer.edges, style.lineColor, style.lineOpacity);
+      scene.add(layerLines);
+      disposables.push(layerLines);
+    }
 
     const ambientLight = new THREE.AmbientLight(0x8fcfff, 0.45);
     scene.add(ambientLight);
@@ -140,12 +207,17 @@ export function FlightSceneView({ flightState, terrain }: Props) {
     return () => {
       window.cancelAnimationFrame(rafId);
       window.removeEventListener("resize", onResize);
-      if (terrainSurface) {
-        terrainSurface.geometry.dispose();
-        (terrainSurface.material as THREE.Material).dispose();
+      for (const item of disposables) {
+        item.geometry.dispose();
+        const material = item.material;
+        if (Array.isArray(material)) {
+          for (const m of material) {
+            m.dispose();
+          }
+        } else {
+          material.dispose();
+        }
       }
-      terrainLines.geometry.dispose();
-      (terrainLines.material as THREE.Material).dispose();
       renderer.dispose();
       cameraRef.current = null;
       rendererRef.current = null;

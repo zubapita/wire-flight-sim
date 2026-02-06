@@ -37,6 +37,7 @@ function createBuilder() {
   const edges = [];
   const faces = [];
   const vertexMap = new Map();
+  const layerMap = new Map();
 
   function vertexKey(x, y, z) {
     return `${x},${y},${z}`;
@@ -54,28 +55,44 @@ function createBuilder() {
     return index;
   }
 
-  function addEdge(a, b) {
-    if (a !== b) {
-      edges.push([a, b]);
+  function ensureLayer(layerName) {
+    const normalized = layerName ?? "other";
+    const existing = layerMap.get(normalized);
+    if (existing) {
+      return existing;
     }
+    const created = { edges: [], faces: [] };
+    layerMap.set(normalized, created);
+    return created;
   }
 
-  function addFace(a, b, c) {
+  function addEdge(a, b, layerName = "other") {
+    if (a === b) {
+      return;
+    }
+    const edge = [a, b];
+    edges.push(edge);
+    ensureLayer(layerName).edges.push(edge);
+  }
+
+  function addFace(a, b, c, layerName = "other") {
     if (a !== b && b !== c && c !== a) {
-      faces.push([a, b, c]);
+      const face = [a, b, c];
+      faces.push(face);
+      ensureLayer(layerName).faces.push(face);
     }
   }
 
-  function addQuad(a, b, c, d) {
-    addEdge(a, b);
-    addEdge(b, c);
-    addEdge(c, d);
-    addEdge(d, a);
-    addFace(a, b, c);
-    addFace(a, c, d);
+  function addQuad(a, b, c, d, layerName = "other") {
+    addEdge(a, b, layerName);
+    addEdge(b, c, layerName);
+    addEdge(c, d, layerName);
+    addEdge(d, a, layerName);
+    addFace(a, b, c, layerName);
+    addFace(a, c, d, layerName);
   }
 
-  function addBox(cx, cz, width, depth, height) {
+  function addBox(cx, cz, width, depth, height, layerName = "building") {
     const hw = width / 2;
     const hd = depth / 2;
     const y0 = 0;
@@ -90,12 +107,37 @@ function createBuilder() {
     const v6 = addVertex(cx + hw, y1, cz + hd);
     const v7 = addVertex(cx - hw, y1, cz + hd);
 
-    addQuad(v0, v1, v2, v3); // bottom
-    addQuad(v4, v5, v6, v7); // top
-    addQuad(v0, v1, v5, v4);
-    addQuad(v1, v2, v6, v5);
-    addQuad(v2, v3, v7, v6);
-    addQuad(v3, v0, v4, v7);
+    addQuad(v0, v1, v2, v3, layerName); // bottom
+    addQuad(v4, v5, v6, v7, layerName); // top
+    addQuad(v0, v1, v5, v4, layerName);
+    addQuad(v1, v2, v6, v5, layerName);
+    addQuad(v2, v3, v7, v6, layerName);
+    addQuad(v3, v0, v4, v7, layerName);
+  }
+
+  function addStrip(points, width, y, layerName) {
+    if (!Array.isArray(points) || points.length < 2) {
+      return;
+    }
+
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const from = points[i];
+      const to = points[i + 1];
+      const dx = to.x - from.x;
+      const dz = to.z - from.z;
+      const length = Math.hypot(dx, dz);
+      if (length === 0) {
+        continue;
+      }
+      const nx = (-dz / length) * (width / 2);
+      const nz = (dx / length) * (width / 2);
+
+      const a = addVertex(from.x + nx, y, from.z + nz);
+      const b = addVertex(from.x - nx, y, from.z - nz);
+      const c = addVertex(to.x - nx, y, to.z - nz);
+      const d = addVertex(to.x + nx, y, to.z + nz);
+      addQuad(a, b, c, d, layerName);
+    }
   }
 
   return {
@@ -105,6 +147,20 @@ function createBuilder() {
     addVertex,
     addEdge,
     addBox,
+    addStrip,
+    buildLayers() {
+      const layerEntries = Array.from(layerMap.entries()).sort(([a], [b]) => a.localeCompare(b));
+      const layers = {};
+      for (const [layerName, layerData] of layerEntries) {
+        layers[layerName] = {
+          edgeCount: layerData.edges.length,
+          faceCount: layerData.faces.length,
+          edges: layerData.edges,
+          faces: layerData.faces,
+        };
+      }
+      return layers;
+    },
   };
 }
 
@@ -115,13 +171,13 @@ function addGroundGrid(builder) {
   for (let x = -size; x <= size; x += step) {
     const a = builder.addVertex(x, 0, -size);
     const b = builder.addVertex(x, 0, size);
-    builder.addEdge(a, b);
+    builder.addEdge(a, b, "ground");
   }
 
   for (let z = -size; z <= size; z += step) {
     const a = builder.addVertex(-size, 0, z);
     const b = builder.addVertex(size, 0, z);
-    builder.addEdge(a, b);
+    builder.addEdge(a, b, "ground");
   }
 }
 
@@ -133,10 +189,10 @@ function addRoadFrame(builder) {
   const p1 = builder.addVertex(ring, 0, -ring);
   const p2 = builder.addVertex(ring, 0, ring);
   const p3 = builder.addVertex(-ring, 0, ring);
-  builder.addEdge(p0, p1);
-  builder.addEdge(p1, p2);
-  builder.addEdge(p2, p3);
-  builder.addEdge(p3, p0);
+  builder.addEdge(p0, p1, "road");
+  builder.addEdge(p1, p2, "road");
+  builder.addEdge(p2, p3, "road");
+  builder.addEdge(p3, p0, "road");
 
   const a0 = builder.addVertex(-ring, 0, -avenue);
   const a1 = builder.addVertex(ring, 0, -avenue);
@@ -147,10 +203,92 @@ function addRoadFrame(builder) {
   const a6 = builder.addVertex(avenue, 0, -ring);
   const a7 = builder.addVertex(avenue, 0, ring);
 
-  builder.addEdge(a0, a1);
-  builder.addEdge(a2, a3);
-  builder.addEdge(a4, a5);
-  builder.addEdge(a6, a7);
+  builder.addEdge(a0, a1, "road");
+  builder.addEdge(a2, a3, "road");
+  builder.addEdge(a4, a5, "road");
+  builder.addEdge(a6, a7, "road");
+
+  builder.addStrip(
+    [
+      { x: -2200, z: -600 },
+      { x: 2200, z: -600 },
+    ],
+    120,
+    0.4,
+    "road",
+  );
+  builder.addStrip(
+    [
+      { x: -2200, z: 600 },
+      { x: 2200, z: 600 },
+    ],
+    120,
+    0.4,
+    "road",
+  );
+}
+
+function addRailNetwork(builder) {
+  builder.addStrip(
+    [
+      { x: -2600, z: -1200 },
+      { x: -1200, z: -400 },
+      { x: 200, z: 200 },
+      { x: 1600, z: 900 },
+      { x: 2600, z: 1400 },
+    ],
+    16,
+    1.5,
+    "railway",
+  );
+  builder.addStrip(
+    [
+      { x: -2580, z: -1235 },
+      { x: -1180, z: -435 },
+      { x: 220, z: 165 },
+      { x: 1620, z: 865 },
+      { x: 2620, z: 1365 },
+    ],
+    16,
+    1.5,
+    "railway",
+  );
+}
+
+function addWaterway(builder) {
+  builder.addStrip(
+    [
+      { x: -2600, z: -300 },
+      { x: -1300, z: -120 },
+      { x: 200, z: 120 },
+      { x: 1600, z: 420 },
+      { x: 2600, z: 740 },
+    ],
+    260,
+    -2,
+    "water",
+  );
+}
+
+function addBridge(builder) {
+  builder.addStrip(
+    [
+      { x: -520, z: -520 },
+      { x: 520, z: -520 },
+    ],
+    140,
+    18,
+    "bridge",
+  );
+  builder.addStrip(
+    [
+      { x: -520, z: -520 },
+      { x: 520, z: -520 },
+    ],
+    24,
+    22,
+    "bridge",
+  );
 }
 
 function addBuildingCluster(builder, random, config) {
@@ -180,6 +318,7 @@ function addBuildingCluster(builder, random, config) {
       Math.round(width),
       Math.round(depth),
       Math.round(height),
+      "building",
     );
   }
 }
@@ -190,6 +329,9 @@ function buildTokyoCbdWireframe() {
 
   addGroundGrid(builder);
   addRoadFrame(builder);
+  addRailNetwork(builder);
+  addWaterway(builder);
+  addBridge(builder);
 
   addBuildingCluster(builder, random, {
     centerX: 0,
@@ -238,13 +380,14 @@ function buildTokyoCbdWireframe() {
   return {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
-    source: "procedural-tokyo-cbd",
+    source: "plateau-inspired-tokyo-cbd",
     vertexCount: builder.vertices.length,
     edgeCount: builder.edges.length,
     faceCount: builder.faces.length,
     vertices: builder.vertices,
     edges: builder.edges,
     faces: builder.faces,
+    layers: builder.buildLayers(),
   };
 }
 

@@ -67,6 +67,56 @@ function normalizeEdge(a, b) {
   return a < b ? [a, b] : [b, a];
 }
 
+function normalizeLayerName(input) {
+  const value = String(input ?? "").trim().toLowerCase();
+  if (value.length === 0) {
+    return "other";
+  }
+  if (value.includes("building")) {
+    return "building";
+  }
+  if (value.includes("road")) {
+    return "road";
+  }
+  if (value.includes("bridge")) {
+    return "bridge";
+  }
+  if (value.includes("rail")) {
+    return "railway";
+  }
+  if (value.includes("water") || value.includes("river") || value.includes("canal")) {
+    return "water";
+  }
+  if (value.includes("ground") || value.includes("terrain")) {
+    return "ground";
+  }
+  return "other";
+}
+
+function inferLayerFromGeoJSONFeature(feature) {
+  const properties = feature?.properties;
+  if (!properties || typeof properties !== "object") {
+    return "other";
+  }
+
+  const candidateKeys = ["layer", "type", "class", "category", "featureType", "f_code"];
+  for (const key of candidateKeys) {
+    if (properties[key] !== undefined) {
+      return normalizeLayerName(properties[key]);
+    }
+  }
+
+  return "other";
+}
+
+function inferLayerFromCityObject(cityObject) {
+  const type = cityObject?.type;
+  if (type !== undefined) {
+    return normalizeLayerName(type);
+  }
+  return "other";
+}
+
 function extractRingsFromGeoJSONFeature(feature) {
   if (!feature || !feature.geometry) {
     return [];
@@ -129,12 +179,25 @@ function convertToWireframe(inputData, decimals) {
   const vertexMap = new Map();
   const edgeSet = new Set();
   const faces = [];
+  const layerBuckets = new Map();
 
-  const addRing = (ring) => {
+  function getLayerBucket(layer) {
+    const normalized = normalizeLayerName(layer);
+    const existing = layerBuckets.get(normalized);
+    if (existing) {
+      return existing;
+    }
+    const created = { edgeSet: new Set(), faces: [] };
+    layerBuckets.set(normalized, created);
+    return created;
+  }
+
+  const addRing = (ring, layer) => {
     if (!Array.isArray(ring) || ring.length < 2) {
       return;
     }
 
+    const layerBucket = getLayerBucket(layer);
     const ringVertexIndexes = ring.map((v) => addVertex(vertexMap, vertices, v, decimals));
 
     for (let i = 0; i < ringVertexIndexes.length; i += 1) {
@@ -144,7 +207,9 @@ function convertToWireframe(inputData, decimals) {
         continue;
       }
       const [e0, e1] = normalizeEdge(a, b);
-      edgeSet.add(`${e0},${e1}`);
+      const edgeKey = `${e0},${e1}`;
+      edgeSet.add(edgeKey);
+      layerBucket.edgeSet.add(edgeKey);
     }
 
     if (ringVertexIndexes.length >= 3) {
@@ -153,7 +218,9 @@ function convertToWireframe(inputData, decimals) {
         const f1 = ringVertexIndexes[i];
         const f2 = ringVertexIndexes[i + 1];
         if (f0 !== f1 && f1 !== f2 && f0 !== f2) {
-          faces.push([f0, f1, f2]);
+          const face = [f0, f1, f2];
+          faces.push(face);
+          layerBucket.faces.push(face);
         }
       }
     }
@@ -161,18 +228,20 @@ function convertToWireframe(inputData, decimals) {
 
   if (inputData.type === "FeatureCollection" && Array.isArray(inputData.features)) {
     for (const feature of inputData.features) {
+      const layer = inferLayerFromGeoJSONFeature(feature);
       const rings = extractRingsFromGeoJSONFeature(feature);
       for (const ring of rings) {
-        addRing(ring);
+        addRing(ring, layer);
       }
     }
   } else if (inputData.type === "CityJSON" && inputData.CityObjects && inputData.vertices) {
     const allVertices = inputData.vertices;
     for (const key of Object.keys(inputData.CityObjects).sort()) {
       const cityObject = inputData.CityObjects[key];
+      const layer = inferLayerFromCityObject(cityObject);
       const rings = extractRingsFromCityJSONGeometry(cityObject, allVertices);
       for (const ring of rings) {
-        addRing(ring);
+        addRing(ring, layer);
       }
     }
   } else {
@@ -183,6 +252,20 @@ function convertToWireframe(inputData, decimals) {
     .map((entry) => entry.split(",").map(Number))
     .sort((a, b) => (a[0] - b[0] !== 0 ? a[0] - b[0] : a[1] - b[1]));
 
+  const layers = {};
+  for (const [layerName, bucket] of Array.from(layerBuckets.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+    const layerEdges = Array.from(bucket.edgeSet)
+      .map((entry) => entry.split(",").map(Number))
+      .sort((a, b) => (a[0] - b[0] !== 0 ? a[0] - b[0] : a[1] - b[1]));
+
+    layers[layerName] = {
+      edgeCount: layerEdges.length,
+      faceCount: bucket.faces.length,
+      edges: layerEdges,
+      faces: bucket.faces,
+    };
+  }
+
   return {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -192,6 +275,7 @@ function convertToWireframe(inputData, decimals) {
     vertices,
     edges,
     faces,
+    layers,
   };
 }
 
