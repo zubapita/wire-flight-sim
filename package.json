@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "convert:terrain": "node scripts/convert-plateau-to-wireframe.mjs"
+    "convert:terrain": "node scripts/convert-plateau-to-wireframe.mjs",
+    "generate:city": "node scripts/generate-tokyo-cbd-wireframe.mjs"
   },
   "dependencies": {
     "next": "16.1.6",

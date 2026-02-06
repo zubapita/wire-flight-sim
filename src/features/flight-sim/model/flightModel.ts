@@ -23,14 +23,14 @@ function wrapHeading(deg: number): number {
 
 export function createInitialFlightState(): FlightState {
   return {
-    position: { x: 0, y: 1200, z: 0 },
-    velocityMs: 45,
-    pitchDeg: 0,
+    position: { x: -1200, y: 320, z: -900 },
+    velocityMs: 43,
+    pitchDeg: -6,
     rollDeg: 0,
-    yawDeg: 0,
+    yawDeg: 53,
     throttle: 0.55,
-    altitudeMeters: 1200,
-    headingDeg: 0,
+    altitudeMeters: 320,
+    headingDeg: 53,
   };
 }
 

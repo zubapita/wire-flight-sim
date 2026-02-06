@@ -128,6 +128,7 @@ function convertToWireframe(inputData, decimals) {
   const vertices = [];
   const vertexMap = new Map();
   const edgeSet = new Set();
+  const faces = [];
 
   const addRing = (ring) => {
     if (!Array.isArray(ring) || ring.length < 2) {
@@ -144,6 +145,17 @@ function convertToWireframe(inputData, decimals) {
       }
       const [e0, e1] = normalizeEdge(a, b);
       edgeSet.add(`${e0},${e1}`);
+    }
+
+    if (ringVertexIndexes.length >= 3) {
+      for (let i = 1; i < ringVertexIndexes.length - 1; i += 1) {
+        const f0 = ringVertexIndexes[0];
+        const f1 = ringVertexIndexes[i];
+        const f2 = ringVertexIndexes[i + 1];
+        if (f0 !== f1 && f1 !== f2 && f0 !== f2) {
+          faces.push([f0, f1, f2]);
+        }
+      }
     }
   };
 
@@ -176,8 +188,10 @@ function convertToWireframe(inputData, decimals) {
     generatedAt: new Date().toISOString(),
     vertexCount: vertices.length,
     edgeCount: edges.length,
+    faceCount: faces.length,
     vertices,
     edges,
+    faces,
   };
 }
 

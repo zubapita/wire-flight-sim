@@ -5,7 +5,7 @@ import {
   createInitialFlightState,
   updateFlightState,
 } from "@/features/flight-sim/model/flightModel";
-import { createBootstrapTerrain } from "@/features/flight-sim/model/terrainModel";
+import { createBootstrapTerrain, loadTerrainFromUrl, TerrainMesh } from "@/features/flight-sim/model/terrainModel";
 import { FlightState, HudState, InputState } from "@/features/flight-sim/types/flightTypes";
 
 const EMPTY_INPUT: InputState = {
@@ -33,7 +33,7 @@ const KEY_BINDINGS: Record<string, keyof InputState> = {
 export type FlightSimulatorController = {
   flightState: FlightState;
   hudState: HudState;
-  terrain: ReturnType<typeof createBootstrapTerrain>;
+  terrain: TerrainMesh;
   isPaused: boolean;
   togglePause: () => void;
 };
@@ -44,7 +44,8 @@ export function useFlightSimulatorController(): FlightSimulatorController {
   const inputRef = useRef<InputState>(EMPTY_INPUT);
   const previousFrameMsRef = useRef<number>(0);
 
-  const terrain = useMemo(() => createBootstrapTerrain(), []);
+  const fallbackTerrain = useMemo(() => createBootstrapTerrain(), []);
+  const [terrain, setTerrain] = useState<TerrainMesh>(fallbackTerrain);
 
   const togglePause = useCallback(() => {
     setIsPaused((prev) => !prev);
@@ -81,6 +82,24 @@ export function useFlightSimulatorController(): FlightSimulatorController {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadTerrainFromUrl("/terrain/sample_tokyo_wireframe.json")
+      .then((loadedTerrain) => {
+        if (!cancelled) {
+          setTerrain(loadedTerrain);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load terrain data:", error);
+      });
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
