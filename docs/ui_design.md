@@ -18,8 +18,10 @@
 
 ### TerrainStatusOverlay
 - 地形読込失敗時に全画面オーバーレイ表示
-- 表示内容: エラータイトル / エラーメッセージ / `RETRY` ボタン
+- 表示内容: エラータイトル / エラーメッセージ / `RETRY` ボタン / `SAFE MODE` ボタン
 - `RETRY` クリックでControllerの再試行処理を実行
+- `SAFE MODE` クリックで地形なしテスト空間へ切替
+- セーフモード中は上部バナーに `SAFE MODE: TERRAIN DISABLED` を表示し、`TRY TERRAIN MODE` で通常再試行
 
 ### PauseMenu
 - 中央モーダル

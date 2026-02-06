@@ -90,5 +90,6 @@
 ## 9. 既知の実装ギャップ（2026-02-07時点）
 - 描画入力は `public/terrain/sample_tokyo_wireframe.json`（`source: plateau-13103-minato-ku-2023-v4-real`）へ移行済み。
 - インフラ種別の描画レイヤー基盤は実装済み（`building/road/bridge/railway/water` 出力確認済み）。
+- セーフモード起動は実装済み（地形ロード失敗オーバーレイの `SAFE MODE` ボタン、`?safeMode=1` 起動）。
 - 実PLATEAUデータでの表示品質検証（道路密度・橋梁形状・河川連続性）は未完了。
 - 解決タスクと完了判定は `docs/tasks.md` の「現状課題（2026-02-07確認）」を正とする。

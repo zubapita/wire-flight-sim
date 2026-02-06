@@ -262,6 +262,12 @@ export async function loadTerrainFromUrl(url: string): Promise<TerrainMesh> {
 export function createBootstrapTerrain(): TerrainMesh {
   const vertices: Vec3[] = [];
   const edges: Array<[number, number]> = [];
+  const addEdge = (a: number, b: number): void => {
+    const edge = normalizeEdge([a, b]);
+    if (edge) {
+      edges.push(edge);
+    }
+  };
 
   const size = 2500;
   const step = 250;
@@ -269,13 +275,55 @@ export function createBootstrapTerrain(): TerrainMesh {
   for (let x = -size; x <= size; x += step) {
     vertices.push({ x, y: 0, z: -size });
     vertices.push({ x, y: 0, z: size });
-    edges.push([vertices.length - 2, vertices.length - 1]);
+    addEdge(vertices.length - 2, vertices.length - 1);
   }
 
   for (let z = -size; z <= size; z += step) {
     vertices.push({ x: -size, y: 0, z });
     vertices.push({ x: size, y: 0, z });
-    edges.push([vertices.length - 2, vertices.length - 1]);
+    addEdge(vertices.length - 2, vertices.length - 1);
+  }
+
+  const towerPoints: Array<{ x: number; z: number; top: number }> = [
+    { x: 0, z: 0, top: 900 },
+    { x: 800, z: 800, top: 700 },
+    { x: -900, z: 650, top: 760 },
+    { x: 1200, z: -1000, top: 640 },
+    { x: -1100, z: -1100, top: 820 },
+  ];
+
+  for (const point of towerPoints) {
+    const baseA = vertices.length;
+    vertices.push({ x: point.x - 45, y: 0, z: point.z - 45 });
+    const baseB = vertices.length;
+    vertices.push({ x: point.x + 45, y: 0, z: point.z - 45 });
+    const baseC = vertices.length;
+    vertices.push({ x: point.x + 45, y: 0, z: point.z + 45 });
+    const baseD = vertices.length;
+    vertices.push({ x: point.x - 45, y: 0, z: point.z + 45 });
+    const topA = vertices.length;
+    vertices.push({ x: point.x - 45, y: point.top, z: point.z - 45 });
+    const topB = vertices.length;
+    vertices.push({ x: point.x + 45, y: point.top, z: point.z - 45 });
+    const topC = vertices.length;
+    vertices.push({ x: point.x + 45, y: point.top, z: point.z + 45 });
+    const topD = vertices.length;
+    vertices.push({ x: point.x - 45, y: point.top, z: point.z + 45 });
+
+    addEdge(baseA, baseB);
+    addEdge(baseB, baseC);
+    addEdge(baseC, baseD);
+    addEdge(baseD, baseA);
+
+    addEdge(topA, topB);
+    addEdge(topB, topC);
+    addEdge(topC, topD);
+    addEdge(topD, topA);
+
+    addEdge(baseA, topA);
+    addEdge(baseB, topB);
+    addEdge(baseC, topC);
+    addEdge(baseD, topD);
   }
 
   return {

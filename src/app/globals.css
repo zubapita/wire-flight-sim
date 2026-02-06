@@ -102,6 +102,30 @@ body {
   color: var(--line);
   font-size: 12px;
   letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terrain-status-banner-safe {
+  border-color: rgba(255, 214, 120, 0.62);
+  color: #ffe3aa;
+  background: rgba(41, 26, 4, 0.92);
+}
+
+.terrain-inline-button {
+  border: 1px solid rgba(255, 214, 120, 0.8);
+  background: rgba(120, 85, 16, 0.66);
+  color: #ffefca;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.terrain-inline-button:hover {
+  background: rgba(154, 108, 16, 0.7);
 }
 
 .terrain-error-overlay {
@@ -145,4 +169,23 @@ body {
 
 .terrain-retry-button:hover {
   background: #6a1b1b;
+}
+
+.terrain-error-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.terrain-safe-button {
+  border: 1px solid rgba(255, 219, 156, 0.9);
+  background: #4c350f;
+  color: #fff0d2;
+  padding: 8px 16px;
+  font: inherit;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.terrain-safe-button:hover {
+  background: #6f4c14;
 }

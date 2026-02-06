@@ -35,13 +35,15 @@ export type FlightSimulatorController = {
   hudState: HudState;
   terrain: TerrainMesh;
   isPaused: boolean;
+  safeModeActive: boolean;
   terrainLoadStatus: "loading" | "ready" | "error";
   terrainLoadErrorMessage: string | null;
   togglePause: () => void;
   retryTerrainLoad: () => void;
+  enterSafeMode: () => void;
 };
 
-export function useFlightSimulatorController(): FlightSimulatorController {
+export function useFlightSimulatorController(initialSafeMode: boolean): FlightSimulatorController {
   const [flightState, setFlightState] = useState<FlightState>(createInitialFlightState);
   const [isPaused, setIsPaused] = useState(false);
   const inputRef = useRef<InputState>(EMPTY_INPUT);
@@ -49,7 +51,10 @@ export function useFlightSimulatorController(): FlightSimulatorController {
 
   const fallbackTerrain = useMemo(() => createBootstrapTerrain(), []);
   const [terrain, setTerrain] = useState<TerrainMesh>(fallbackTerrain);
-  const [terrainLoadStatus, setTerrainLoadStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [safeModeActive, setSafeModeActive] = useState(initialSafeMode);
+  const [terrainLoadStatus, setTerrainLoadStatus] = useState<"loading" | "ready" | "error">(
+    initialSafeMode ? "ready" : "loading",
+  );
   const [terrainLoadErrorMessage, setTerrainLoadErrorMessage] = useState<string | null>(null);
   const terrainRequestSeqRef = useRef(0);
 
@@ -60,6 +65,7 @@ export function useFlightSimulatorController(): FlightSimulatorController {
           return;
         }
         setTerrain(loadedTerrain);
+        setSafeModeActive(false);
         setTerrainLoadStatus("ready");
       })
       .catch((error: unknown) => {
@@ -72,6 +78,14 @@ export function useFlightSimulatorController(): FlightSimulatorController {
         console.error("Failed to load terrain data:", error);
       });
   }, []);
+
+  const enterSafeMode = useCallback(() => {
+    terrainRequestSeqRef.current += 1;
+    setSafeModeActive(true);
+    setTerrain(fallbackTerrain);
+    setTerrainLoadStatus("ready");
+    setTerrainLoadErrorMessage(null);
+  }, [fallbackTerrain]);
 
   const togglePause = useCallback(() => {
     setIsPaused((prev) => !prev);
@@ -115,16 +129,20 @@ export function useFlightSimulatorController(): FlightSimulatorController {
     const requestId = terrainRequestSeqRef.current + 1;
     terrainRequestSeqRef.current = requestId;
 
+    setSafeModeActive(false);
     setTerrainLoadStatus("loading");
     setTerrainLoadErrorMessage(null);
     startTerrainLoad(requestId);
   }, [startTerrainLoad]);
 
   useEffect(() => {
+    if (safeModeActive) {
+      return;
+    }
     const requestId = terrainRequestSeqRef.current + 1;
     terrainRequestSeqRef.current = requestId;
     startTerrainLoad(requestId);
-  }, [startTerrainLoad]);
+  }, [safeModeActive, startTerrainLoad]);
 
   useEffect(() => {
     let rafId = 0;
@@ -162,9 +180,11 @@ export function useFlightSimulatorController(): FlightSimulatorController {
     hudState,
     terrain,
     isPaused,
+    safeModeActive,
     terrainLoadStatus,
     terrainLoadErrorMessage,
     togglePause,
     retryTerrainLoad,
+    enterSafeMode,
   };
 }
