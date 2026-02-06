@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "sample-building-a"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [139.7500, 35.6800, 10],
+            [139.7510, 35.6800, 10],
+            [139.7510, 35.6810, 10],
+            [139.7500, 35.6810, 10],
+            [139.7500, 35.6800, 10]
+          ]
+        ]
+      }
+    }
+  ]
+}

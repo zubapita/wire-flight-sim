@@ -76,3 +76,24 @@
 - `zod`
 - `zustand`（状態保持）
 - `idb`（IndexedDBアクセス）
+
+## 10. 地形変換パイプライン実装
+- 実装スクリプト: `scripts/convert-plateau-to-wireframe.mjs`
+- 入力対応:
+  - GeoJSON `FeatureCollection` (`Polygon` / `MultiPolygon`)
+  - CityJSON (`MultiSurface` / `Solid`)
+- 出力:
+  - `schemaVersion`
+  - `vertexCount` / `edgeCount`
+  - `vertices: number[][]`
+  - `edges: number[][]`
+- 変換規則:
+  - 頂点は小数桁丸め（`--decimals`）後に重複排除
+  - エッジは無向辺として正規化し重複排除
+  - CityObjectはキー昇順で処理し再現性を確保
+- 終了コード:
+  - `2` 引数不正
+  - `3` 入力読込失敗
+  - `4` JSONパース失敗
+  - `5` 変換失敗
+  - `6` 出力書込失敗
