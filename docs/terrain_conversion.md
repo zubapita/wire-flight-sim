@@ -5,17 +5,25 @@
 
 ## 2. 実装
 - スクリプト: `scripts/convert-plateau-to-wireframe.mjs`
-- npm script: `npm run convert:terrain -- --input <input.json> --output <output.json> [--decimals 3]`
+- 補助スクリプト（実データFeatureCollection生成）: `scripts/build-minato-real-feature-collection.mjs`
+- npm script:
+  - `npm run build:plateau:feature-collection`
+  - `npm run convert:terrain -- --input <input.json> --output <output.json> [--decimals 3] [--source <source-id>]`
 
 ## 3. 実行例
 ```bash
+npm run build:plateau:feature-collection
+
 npm run convert:terrain -- \
-  --input docs/data/sample_tokyo_plateau_feature_collection.json \
-  --output public/terrain/sample_tokyo_wireframe.json
+  --input docs/data/minato_plateau_feature_collection.json \
+  --output public/terrain/sample_tokyo_wireframe.json \
+  --decimals 4 \
+  --source plateau-13103-minato-ku-2023-v4-real
 ```
 
 ## 4. 入力仕様
 - GeoJSON FeatureCollection
+- GeoJSON `LineString` / `MultiLineString` をサポート
 - CityJSON
 
 ## 5. 出力仕様
@@ -23,6 +31,7 @@ npm run convert:terrain -- \
 {
   "schemaVersion": 1,
   "generatedAt": "2026-02-07T00:00:00.000Z",
+  "source": "plateau-13103-minato-ku-2023-v4-real",
   "vertexCount": 4,
   "edgeCount": 4,
   "vertices": [[0, 0, 0]],

@@ -1,21 +1,21 @@
 # 3Dフライトシミュレータ 実装タスク
 
 ## 現状課題（2026-02-07確認）
-- [ ] 描画データが `public/terrain/sample_tokyo_wireframe.json`（`source: plateau-inspired-tokyo-cbd`）に依存しており、PLATEAU由来の実データ運用に未移行
+- [x] 描画データを `public/terrain/sample_tokyo_wireframe.json`（`source: plateau-13103-minato-ku-2023-v4-real`）へ更新し、PLATEAU由来の実データへ移行
 - [ ] レイヤー別描画は実装済みだが、実PLATEAU東京都心データでの表示品質（道路密度・橋梁形状・河川連続性）の検証が未完了
-- [ ] GeoJSON/CityJSON入力の属性命名ゆらぎ（`type` / `class` / `layer`）に対する対象レイヤー定義の最終確定が未完了
+- [x] GeoJSON/CityJSON入力の属性命名ゆらぎ（`type` / `class` / `layer`）に対する対象レイヤー定義を確定（`layer` 優先、LineString/MultiLineString対応）
 
 ### 解決タスク（優先）
-- [ ] PLATEAU入力データの対象レイヤーを確定（建物に加えて道路・橋梁・鉄道・水部を対象化）
+- [x] PLATEAU入力データの対象レイヤーを確定（建物に加えて道路・橋梁・鉄道・水部を対象化）
 - [x] `scripts/convert-plateau-to-wireframe.mjs` にインフラ種別の出力属性（例: layer/type）を追加
 - [x] `TerrainModel` で属性付きデータを受け取り、描画用メッシュをレイヤー別に組み立て
 - [x] `SceneView` でレイヤー別描画（視認性のための色/線種/表示切替）を実装
-- [ ] 東京都心の実データ変換結果でE2E動作確認し、`plateau-inspired-tokyo-cbd` 依存を解消
+- [ ] 東京都心の実データ変換結果でE2E動作確認を完了する
 
 ### 完了判定
 - [x] ビルのみではなく、少なくとも道路または橋梁のいずれかが同時表示される
-- [ ] `public/terrain/sample_tokyo_wireframe.json` の `source` が実データ由来である
-- [ ] 失敗時のエラー表示と再試行導線が維持される
+- [x] `public/terrain/sample_tokyo_wireframe.json` の `source` が実データ由来である
+- [x] 失敗時のエラー表示と再試行導線が維持される
 
 ## Phase 0: 基盤準備
 - [x] Next.js + TypeScript プロジェクト初期化
@@ -26,7 +26,7 @@
 
 ## Phase 1: 最小飛行体験（MVP）
 - [x] MVC骨格実装（Model/View/Controller分離）
-- [ ] ワイヤーフレーム地形の固定読み込み
+- [x] ワイヤーフレーム地形の固定読み込み
 - [x] キーボード操縦（ピッチ/ロール/ヨー/スロットル）
 - [x] コックピット視点カメラ
 - [x] HUD最低限表示（速度・高度・方位）
@@ -36,6 +36,7 @@
 - [ ] 一時停止/再開
 - [ ] 設定画面と永続化（localStorage）
 - [ ] エラーハンドリング（再試行/セーフモード）
+- 再試行導線は実装済み、セーフモード起動は未実装
 
 ## Phase 3: データ最適化
 - [ ] チャンク読み込み + IndexedDBキャッシュ

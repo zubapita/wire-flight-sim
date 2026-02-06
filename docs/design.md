@@ -20,17 +20,18 @@
 ### View層
 - `SceneView`: Three.jsシーン構築・ワイヤーフレーム描画のみ
 - `HudView`: 計器と警告表示
-- `MenuView`: 設定UI、エラーUI、ライセンス表示
+- `TerrainStatusOverlayView`: 地形読込中表示、読込失敗時の再試行導線
+- `MenuView`: 設定UI、ライセンス表示
 
 ### Controller層
 - `InputController`: キーボード入力を正規化してModelへ委譲
 - `SimulationController`: tickごとのModel更新をオーケストレーション
-- `AppController`: 起動、リソース読込、エラー復旧、View更新トリガー
+- `AppController`: 起動、地形ロード状態管理（`loading/ready/error`）、再試行、View更新トリガー
 
 ## 4. 主要シーケンス
 1. 起動
 - `AppController`が設定をロード
-- 地形マニフェスト取得
+- 地形JSON取得（`/terrain/sample_tokyo_wireframe.json`）
 - `SceneView`初期化
 - 初期スポーン位置で開始
 
@@ -79,11 +80,13 @@
 
 ## 10. 地形変換パイプライン実装
 - 実装スクリプト: `scripts/convert-plateau-to-wireframe.mjs`
+- 実データFeatureCollection生成: `scripts/build-minato-real-feature-collection.mjs`
 - 入力対応:
-  - GeoJSON `FeatureCollection` (`Polygon` / `MultiPolygon`)
+  - GeoJSON `FeatureCollection` (`Polygon` / `MultiPolygon` / `LineString` / `MultiLineString`)
   - CityJSON (`MultiSurface` / `Solid`)
 - 出力:
   - `schemaVersion`
+  - `source`
   - `vertexCount` / `edgeCount`
   - `vertices: number[][]`
   - `edges: number[][]`

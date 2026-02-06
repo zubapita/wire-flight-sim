@@ -88,7 +88,7 @@
 - ライセンス表記が画面内から確認できる
 
 ## 9. 既知の実装ギャップ（2026-02-07時点）
-- 現在の描画入力は `public/terrain/sample_tokyo_wireframe.json`（`source: plateau-inspired-tokyo-cbd`）であり、PLATEAU由来の実データ運用に未移行。
-- インフラ種別の描画レイヤー基盤は追加済みだが、実PLATEAUの東京都心データでの表示検証が未完了。
-- FR-01/FR-05の充足に向け、PLATEAU対象レイヤー定義、変換出力の種別属性化、レイヤー別描画実装が必要。
+- 描画入力は `public/terrain/sample_tokyo_wireframe.json`（`source: plateau-13103-minato-ku-2023-v4-real`）へ移行済み。
+- インフラ種別の描画レイヤー基盤は実装済み（`building/road/bridge/railway/water` 出力確認済み）。
+- 実PLATEAUデータでの表示品質検証（道路密度・橋梁形状・河川連続性）は未完了。
 - 解決タスクと完了判定は `docs/tasks.md` の「現状課題（2026-02-07確認）」を正とする。
