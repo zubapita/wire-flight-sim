@@ -90,3 +90,59 @@ body {
   border: 1px solid rgba(90, 255, 210, 0.7);
   background: rgba(3, 17, 22, 0.85);
 }
+
+.terrain-status-banner {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border: 1px solid rgba(90, 255, 210, 0.5);
+  background: rgba(2, 16, 22, 0.9);
+  color: var(--line);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.terrain-error-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  justify-items: center;
+  background: rgba(2, 6, 10, 0.72);
+  color: #ffd6d6;
+  pointer-events: auto;
+}
+
+.terrain-error-title {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 126, 126, 0.65);
+  background: rgba(52, 9, 9, 0.8);
+  font-size: 14px;
+  letter-spacing: 0.07em;
+}
+
+.terrain-error-message {
+  margin: 0;
+  max-width: min(80vw, 720px);
+  font-size: 12px;
+  color: #ffdede;
+  text-align: center;
+}
+
+.terrain-retry-button {
+  border: 1px solid rgba(255, 159, 159, 0.9);
+  background: #4b1212;
+  color: #ffe8e8;
+  padding: 8px 16px;
+  font: inherit;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.terrain-retry-button:hover {
+  background: #6a1b1b;
+}

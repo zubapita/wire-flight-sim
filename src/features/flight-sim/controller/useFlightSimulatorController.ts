@@ -35,7 +35,10 @@ export type FlightSimulatorController = {
   hudState: HudState;
   terrain: TerrainMesh;
   isPaused: boolean;
+  terrainLoadStatus: "loading" | "ready" | "error";
+  terrainLoadErrorMessage: string | null;
   togglePause: () => void;
+  retryTerrainLoad: () => void;
 };
 
 export function useFlightSimulatorController(): FlightSimulatorController {
@@ -46,6 +49,29 @@ export function useFlightSimulatorController(): FlightSimulatorController {
 
   const fallbackTerrain = useMemo(() => createBootstrapTerrain(), []);
   const [terrain, setTerrain] = useState<TerrainMesh>(fallbackTerrain);
+  const [terrainLoadStatus, setTerrainLoadStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [terrainLoadErrorMessage, setTerrainLoadErrorMessage] = useState<string | null>(null);
+  const terrainRequestSeqRef = useRef(0);
+
+  const startTerrainLoad = useCallback((requestId: number) => {
+    loadTerrainFromUrl("/terrain/sample_tokyo_wireframe.json")
+      .then((loadedTerrain) => {
+        if (terrainRequestSeqRef.current !== requestId) {
+          return;
+        }
+        setTerrain(loadedTerrain);
+        setTerrainLoadStatus("ready");
+      })
+      .catch((error: unknown) => {
+        if (terrainRequestSeqRef.current !== requestId) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : "Unknown terrain load failure";
+        setTerrainLoadStatus("error");
+        setTerrainLoadErrorMessage(message);
+        console.error("Failed to load terrain data:", error);
+      });
+  }, []);
 
   const togglePause = useCallback(() => {
     setIsPaused((prev) => !prev);
@@ -85,23 +111,20 @@ export function useFlightSimulatorController(): FlightSimulatorController {
     };
   }, []);
 
+  const retryTerrainLoad = useCallback(() => {
+    const requestId = terrainRequestSeqRef.current + 1;
+    terrainRequestSeqRef.current = requestId;
+
+    setTerrainLoadStatus("loading");
+    setTerrainLoadErrorMessage(null);
+    startTerrainLoad(requestId);
+  }, [startTerrainLoad]);
+
   useEffect(() => {
-    let cancelled = false;
-
-    loadTerrainFromUrl("/terrain/sample_tokyo_wireframe.json")
-      .then((loadedTerrain) => {
-        if (!cancelled) {
-          setTerrain(loadedTerrain);
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to load terrain data:", error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const requestId = terrainRequestSeqRef.current + 1;
+    terrainRequestSeqRef.current = requestId;
+    startTerrainLoad(requestId);
+  }, [startTerrainLoad]);
 
   useEffect(() => {
     let rafId = 0;
@@ -139,6 +162,9 @@ export function useFlightSimulatorController(): FlightSimulatorController {
     hudState,
     terrain,
     isPaused,
+    terrainLoadStatus,
+    terrainLoadErrorMessage,
     togglePause,
+    retryTerrainLoad,
   };
 }

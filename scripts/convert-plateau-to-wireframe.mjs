@@ -11,7 +11,7 @@ const EXIT_WRITE_FAILED = 6;
 
 function printUsage() {
   console.error(
-    "Usage: node scripts/convert-plateau-to-wireframe.mjs --input <input.json> --output <output.json> [--decimals 3]",
+    "Usage: node scripts/convert-plateau-to-wireframe.mjs --input <input.json> --output <output.json> [--decimals 3] [--source <source-id>]",
   );
 }
 
@@ -28,6 +28,9 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === "--decimals") {
       args.decimals = Number(argv[i + 1]);
+      i += 1;
+    } else if (token === "--source") {
+      args.source = argv[i + 1];
       i += 1;
     } else {
       throw new Error(`Unknown option: ${token}`);
@@ -132,6 +135,28 @@ function extractRingsFromGeoJSONFeature(feature) {
   return [];
 }
 
+function extractLineStringsFromGeoJSONFeature(feature) {
+  if (!feature || !feature.geometry) {
+    return [];
+  }
+
+  const { type, coordinates } = feature.geometry;
+  if (type === "LineString") {
+    return [coordinates];
+  }
+  if (type === "MultiLineString") {
+    return coordinates;
+  }
+  return [];
+}
+
+function toVec3(coordinates) {
+  const x = Number(coordinates?.[0] ?? 0);
+  const y = Number(coordinates?.[1] ?? 0);
+  const z = Number(coordinates?.[2] ?? 0);
+  return [x, y, z];
+}
+
 function extractRingsFromCityJSONGeometry(cityObject, vertices) {
   const geometries = cityObject?.geometry;
   if (!Array.isArray(geometries)) {
@@ -174,7 +199,7 @@ function extractRingsFromCityJSONGeometry(cityObject, vertices) {
   return rings;
 }
 
-function convertToWireframe(inputData, decimals) {
+function convertToWireframe(inputData, decimals, source) {
   const vertices = [];
   const vertexMap = new Map();
   const edgeSet = new Set();
@@ -198,7 +223,7 @@ function convertToWireframe(inputData, decimals) {
     }
 
     const layerBucket = getLayerBucket(layer);
-    const ringVertexIndexes = ring.map((v) => addVertex(vertexMap, vertices, v, decimals));
+    const ringVertexIndexes = ring.map((v) => addVertex(vertexMap, vertices, toVec3(v), decimals));
 
     for (let i = 0; i < ringVertexIndexes.length; i += 1) {
       const a = ringVertexIndexes[i];
@@ -226,12 +251,37 @@ function convertToWireframe(inputData, decimals) {
     }
   };
 
+  const addLineString = (lineString, layer) => {
+    if (!Array.isArray(lineString) || lineString.length < 2) {
+      return;
+    }
+
+    const layerBucket = getLayerBucket(layer);
+    const lineVertexIndexes = lineString.map((v) => addVertex(vertexMap, vertices, toVec3(v), decimals));
+
+    for (let i = 0; i < lineVertexIndexes.length - 1; i += 1) {
+      const a = lineVertexIndexes[i];
+      const b = lineVertexIndexes[i + 1];
+      if (a === b) {
+        continue;
+      }
+      const [e0, e1] = normalizeEdge(a, b);
+      const edgeKey = `${e0},${e1}`;
+      edgeSet.add(edgeKey);
+      layerBucket.edgeSet.add(edgeKey);
+    }
+  };
+
   if (inputData.type === "FeatureCollection" && Array.isArray(inputData.features)) {
     for (const feature of inputData.features) {
       const layer = inferLayerFromGeoJSONFeature(feature);
       const rings = extractRingsFromGeoJSONFeature(feature);
       for (const ring of rings) {
         addRing(ring, layer);
+      }
+      const lineStrings = extractLineStringsFromGeoJSONFeature(feature);
+      for (const lineString of lineStrings) {
+        addLineString(lineString, layer);
       }
     }
   } else if (inputData.type === "CityJSON" && inputData.CityObjects && inputData.vertices) {
@@ -266,7 +316,7 @@ function convertToWireframe(inputData, decimals) {
     };
   }
 
-  return {
+  const output = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     vertexCount: vertices.length,
@@ -277,6 +327,12 @@ function convertToWireframe(inputData, decimals) {
     faces,
     layers,
   };
+
+  if (source) {
+    output.source = source;
+  }
+
+  return output;
 }
 
 async function main() {
@@ -307,7 +363,7 @@ async function main() {
 
   let output;
   try {
-    output = convertToWireframe(data, args.decimals);
+    output = convertToWireframe(data, args.decimals, args.source);
   } catch (error) {
     console.error(`E_CONVERT_FAILED: ${error.message}`);
     process.exit(EXIT_CONVERT_FAILED);
