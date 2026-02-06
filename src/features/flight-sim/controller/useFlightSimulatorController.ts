@@ -5,8 +5,28 @@ import {
   createInitialFlightState,
   updateFlightState,
 } from "@/features/flight-sim/model/flightModel";
-import { createBootstrapTerrain, loadTerrainFromUrl, TerrainMesh } from "@/features/flight-sim/model/terrainModel";
-import { FlightState, HudState, InputState } from "@/features/flight-sim/types/flightTypes";
+import {
+  createBootstrapTerrain,
+  loadTerrainFromUrl,
+  TerrainMesh,
+} from "@/features/flight-sim/model/terrainModel";
+import {
+  createDefaultSettings,
+  loadSettings,
+  saveSettings,
+  validateSettings,
+} from "@/features/flight-sim/model/settingsModel";
+import {
+  evaluateFlightSession,
+  evaluateWarnings,
+} from "@/features/flight-sim/model/sessionModel";
+import {
+  FlightState,
+  FlightWarnings,
+  HudState,
+  InputState,
+  SimulatorSettings,
+} from "@/features/flight-sim/types/flightTypes";
 
 const EMPTY_INPUT: InputState = {
   pitchUp: false,
@@ -19,35 +39,74 @@ const EMPTY_INPUT: InputState = {
   throttleDown: false,
 };
 
-const KEY_BINDINGS: Record<string, keyof InputState> = {
-  ArrowUp: "pitchUp",
-  ArrowDown: "pitchDown",
-  KeyA: "rollLeft",
-  KeyD: "rollRight",
-  KeyQ: "yawRight",
-  KeyE: "yawLeft",
-  KeyW: "throttleUp",
-  KeyS: "throttleDown",
-};
+const COLLISION_BANNER_MS = 3000;
 
 export type FlightSimulatorController = {
   flightState: FlightState;
   hudState: HudState;
+  warnings: FlightWarnings;
   terrain: TerrainMesh;
   isPaused: boolean;
   safeModeActive: boolean;
   terrainLoadStatus: "loading" | "ready" | "error";
   terrainLoadErrorMessage: string | null;
+  settingsErrorMessage: string | null;
+  settings: SimulatorSettings;
+  showSettings: boolean;
+  showLicense: boolean;
+  collisionBannerVisible: boolean;
   togglePause: () => void;
   retryTerrainLoad: () => void;
   enterSafeMode: () => void;
+  updateSettings: (nextSettings: SimulatorSettings) => void;
+  resetSettings: () => void;
+  toggleSettingsPanel: () => void;
+  toggleLicensePanel: () => void;
 };
 
-export function useFlightSimulatorController(initialSafeMode: boolean): FlightSimulatorController {
+function readInitialSettings(): {
+  settings: SimulatorSettings;
+  settingsErrorMessage: string | null;
+} {
+  if (typeof window === "undefined") {
+    return {
+      settings: createDefaultSettings(),
+      settingsErrorMessage: null,
+    };
+  }
+
+  const { settings, recoveredFromError } = loadSettings(window.localStorage);
+
+  return {
+    settings,
+    settingsErrorMessage: recoveredFromError
+      ? "E_SETTINGS_INVALID: 保存設定が不正だったためデフォルト設定で起動しました"
+      : null,
+  };
+}
+
+export function useFlightSimulatorController(
+  initialSafeMode: boolean,
+): FlightSimulatorController {
   const [flightState, setFlightState] = useState<FlightState>(createInitialFlightState);
+  const [warnings, setWarnings] = useState<FlightWarnings>({
+    stallRisk: false,
+    groundWarning: false,
+  });
+  const [collisionBannerVisible, setCollisionBannerVisible] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showLicense, setShowLicense] = useState(false);
+
+  const [settingsBootstrap] = useState(readInitialSettings);
+  const [settings, setSettings] = useState<SimulatorSettings>(settingsBootstrap.settings);
+  const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(
+    settingsBootstrap.settingsErrorMessage,
+  );
+
   const inputRef = useRef<InputState>(EMPTY_INPUT);
   const previousFrameMsRef = useRef<number>(0);
+  const collisionTimerRef = useRef<number | null>(null);
 
   const fallbackTerrain = useMemo(() => createBootstrapTerrain(), []);
   const [terrain, setTerrain] = useState<TerrainMesh>(fallbackTerrain);
@@ -57,6 +116,24 @@ export function useFlightSimulatorController(initialSafeMode: boolean): FlightSi
   );
   const [terrainLoadErrorMessage, setTerrainLoadErrorMessage] = useState<string | null>(null);
   const terrainRequestSeqRef = useRef(0);
+
+  const updateSettings = useCallback((nextSettings: SimulatorSettings) => {
+    const validated = validateSettings(nextSettings);
+    setSettings(validated);
+    if (typeof window !== "undefined") {
+      saveSettings(window.localStorage, validated);
+    }
+    setSettingsErrorMessage(null);
+  }, []);
+
+  const resetSettings = useCallback(() => {
+    const defaults = createDefaultSettings();
+    setSettings(defaults);
+    if (typeof window !== "undefined") {
+      saveSettings(window.localStorage, defaults);
+    }
+    setSettingsErrorMessage(null);
+  }, []);
 
   const startTerrainLoad = useCallback((requestId: number) => {
     loadTerrainFromUrl("/terrain/sample_tokyo_wireframe.json")
@@ -88,7 +165,22 @@ export function useFlightSimulatorController(initialSafeMode: boolean): FlightSi
   }, [fallbackTerrain]);
 
   const togglePause = useCallback(() => {
-    setIsPaused((prev) => !prev);
+    setIsPaused((prev) => {
+      if (prev) {
+        setShowSettings(false);
+      }
+      return !prev;
+    });
+  }, []);
+
+  const toggleSettingsPanel = useCallback(() => {
+    setShowLicense(false);
+    setShowSettings((prev) => !prev);
+  }, []);
+
+  const toggleLicensePanel = useCallback(() => {
+    setShowSettings(false);
+    setShowLicense((prev) => !prev);
   }, []);
 
   useEffect(() => {
@@ -99,7 +191,10 @@ export function useFlightSimulatorController(initialSafeMode: boolean): FlightSi
         return;
       }
 
-      const action = KEY_BINDINGS[event.code];
+      const action = (Object.entries(settings.keyBindings).find(
+        ([, code]) => code === event.code,
+      )?.[0] ?? null) as keyof InputState | null;
+
       if (!action) {
         return;
       }
@@ -108,7 +203,9 @@ export function useFlightSimulatorController(initialSafeMode: boolean): FlightSi
     }
 
     function onKeyUp(event: KeyboardEvent): void {
-      const action = KEY_BINDINGS[event.code];
+      const action = (Object.entries(settings.keyBindings).find(
+        ([, code]) => code === event.code,
+      )?.[0] ?? null) as keyof InputState | null;
       if (!action) {
         return;
       }
@@ -123,7 +220,7 @@ export function useFlightSimulatorController(initialSafeMode: boolean): FlightSi
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, []);
+  }, [settings.keyBindings]);
 
   const retryTerrainLoad = useCallback(() => {
     const requestId = terrainRequestSeqRef.current + 1;
@@ -156,7 +253,30 @@ export function useFlightSimulatorController(initialSafeMode: boolean): FlightSi
       previousFrameMsRef.current = nowMs;
 
       if (!isPaused) {
-        setFlightState((prev) => updateFlightState(prev, inputRef.current, deltaSec));
+        setFlightState((prev) => {
+          const next = updateFlightState(
+            prev,
+            inputRef.current,
+            deltaSec,
+            settings.controlSensitivity,
+          );
+
+          const session = evaluateFlightSession(next, terrain);
+          setWarnings(evaluateWarnings(next, session.terrainHeightMeters));
+
+          if (session.collided) {
+            if (collisionTimerRef.current !== null) {
+              window.clearTimeout(collisionTimerRef.current);
+            }
+            setCollisionBannerVisible(true);
+            collisionTimerRef.current = window.setTimeout(() => {
+              setCollisionBannerVisible(false);
+            }, COLLISION_BANNER_MS);
+            return createInitialFlightState();
+          }
+
+          return next;
+        });
       }
 
       rafId = window.requestAnimationFrame(onFrame);
@@ -164,7 +284,15 @@ export function useFlightSimulatorController(initialSafeMode: boolean): FlightSi
 
     rafId = window.requestAnimationFrame(onFrame);
     return () => window.cancelAnimationFrame(rafId);
-  }, [isPaused]);
+  }, [isPaused, settings.controlSensitivity, terrain]);
+
+  useEffect(() => {
+    return () => {
+      if (collisionTimerRef.current !== null) {
+        window.clearTimeout(collisionTimerRef.current);
+      }
+    };
+  }, []);
 
   const hudState: HudState = {
     speedMs: flightState.velocityMs,
@@ -178,13 +306,23 @@ export function useFlightSimulatorController(initialSafeMode: boolean): FlightSi
   return {
     flightState,
     hudState,
+    warnings,
     terrain,
     isPaused,
     safeModeActive,
     terrainLoadStatus,
     terrainLoadErrorMessage,
+    settingsErrorMessage,
+    settings,
+    showSettings,
+    showLicense,
+    collisionBannerVisible,
     togglePause,
     retryTerrainLoad,
     enterSafeMode,
+    updateSettings,
+    resetSettings,
+    toggleSettingsPanel,
+    toggleLicensePanel,
   };
 }

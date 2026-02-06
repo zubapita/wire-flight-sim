@@ -2,12 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { FlightState } from "@/features/flight-sim/types/flightTypes";
+import { FlightState, GraphicsQuality } from "@/features/flight-sim/types/flightTypes";
 import { TerrainLayerId, TerrainMesh } from "@/features/flight-sim/model/terrainModel";
 
 type Props = {
   flightState: FlightState;
   terrain: TerrainMesh;
+  graphicsQuality: GraphicsQuality;
 };
 
 type LayerStyle = {
@@ -64,7 +65,12 @@ const LAYER_STYLES: Record<TerrainLayerId, LayerStyle> = {
   other: DEFAULT_LAYER_STYLE,
 };
 
-function createTerrainLineSegments(terrain: TerrainMesh, edges: Array<[number, number]>, lineColor: number, lineOpacity: number): THREE.LineSegments {
+function createTerrainLineSegments(
+  terrain: TerrainMesh,
+  edges: Array<[number, number]>,
+  lineColor: number,
+  lineOpacity: number,
+): THREE.LineSegments {
   const points: number[] = [];
 
   for (const [a, b] of edges) {
@@ -79,7 +85,11 @@ function createTerrainLineSegments(terrain: TerrainMesh, edges: Array<[number, n
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
 
-  const material = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: lineOpacity });
+  const material = new THREE.LineBasicMaterial({
+    color: lineColor,
+    transparent: true,
+    opacity: lineOpacity,
+  });
   return new THREE.LineSegments(geometry, material);
 }
 
@@ -127,7 +137,7 @@ function createTerrainSurfaceMesh(
   return new THREE.Mesh(geometry, material);
 }
 
-export function FlightSceneView({ flightState, terrain }: Props) {
+export function FlightSceneView({ flightState, terrain, graphicsQuality }: Props) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -144,24 +154,37 @@ export function FlightSceneView({ flightState, terrain }: Props) {
     const camera = new THREE.PerspectiveCamera(75, mount.clientWidth / mount.clientHeight, 0.1, 40000);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    const renderer = new THREE.WebGLRenderer({ antialias: graphicsQuality === "high" });
+    const maxRatio = graphicsQuality === "low" ? 1 : graphicsQuality === "medium" ? 1.5 : 2;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxRatio));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     rendererRef.current = renderer;
     mount.appendChild(renderer.domElement);
 
     const disposables: Array<THREE.LineSegments | THREE.Mesh> = [];
-    const layers = terrain.layers.length > 0 ? terrain.layers : [{ id: "other" as const, edges: terrain.edges, faces: terrain.faces }];
+    const layers = terrain.layers.length > 0
+      ? terrain.layers
+      : [{ id: "other" as const, edges: terrain.edges, faces: terrain.faces }];
 
     for (const layer of layers) {
       const style = LAYER_STYLES[layer.id] ?? DEFAULT_LAYER_STYLE;
-      const layerSurface = createTerrainSurfaceMesh(terrain, layer.faces, style.surfaceColor, style.surfaceOpacity);
+      const layerSurface = createTerrainSurfaceMesh(
+        terrain,
+        layer.faces,
+        style.surfaceColor,
+        style.surfaceOpacity,
+      );
       if (layerSurface) {
         scene.add(layerSurface);
         disposables.push(layerSurface);
       }
 
-      const layerLines = createTerrainLineSegments(terrain, layer.edges, style.lineColor, style.lineOpacity);
+      const layerLines = createTerrainLineSegments(
+        terrain,
+        layer.edges,
+        style.lineColor,
+        style.lineOpacity,
+      );
       scene.add(layerLines);
       disposables.push(layerLines);
     }
@@ -178,7 +201,12 @@ export function FlightSceneView({ flightState, terrain }: Props) {
       "position",
       new THREE.Float32BufferAttribute([-10000, 0, 3000, 10000, 0, 3000], 3),
     );
-    scene.add(new THREE.Line(horizonGeometry, new THREE.LineBasicMaterial({ color: 0x2efbbf, opacity: 0.4, transparent: true })));
+    scene.add(
+      new THREE.Line(
+        horizonGeometry,
+        new THREE.LineBasicMaterial({ color: 0x2efbbf, opacity: 0.4, transparent: true }),
+      ),
+    );
 
     const onResize = (): void => {
       if (!mount || !cameraRef.current || !rendererRef.current) {
@@ -225,7 +253,7 @@ export function FlightSceneView({ flightState, terrain }: Props) {
         mount.removeChild(renderer.domElement);
       }
     };
-  }, [terrain]);
+  }, [terrain, graphicsQuality]);
 
   useEffect(() => {
     const camera = cameraRef.current;
@@ -239,7 +267,6 @@ export function FlightSceneView({ flightState, terrain }: Props) {
 
     camera.position.set(flightState.position.x, flightState.position.y, flightState.position.z);
     camera.rotation.order = "YXZ";
-    // Match camera forward vector to flight model movement vector.
     camera.rotation.set(pitchRad, yawRad + Math.PI, -rollRad);
   }, [flightState]);
 

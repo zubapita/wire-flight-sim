@@ -34,3 +34,18 @@ export type HudState = {
   rollDeg: number;
   throttlePercent: number;
 };
+
+export type KeyAction = keyof InputState;
+
+export type GraphicsQuality = "low" | "medium" | "high";
+
+export type SimulatorSettings = {
+  controlSensitivity: number;
+  graphicsQuality: GraphicsQuality;
+  keyBindings: Record<KeyAction, string>;
+};
+
+export type FlightWarnings = {
+  stallRisk: boolean;
+  groundWarning: boolean;
+};

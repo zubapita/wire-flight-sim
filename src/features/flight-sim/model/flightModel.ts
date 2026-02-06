@@ -38,6 +38,7 @@ export function updateFlightState(
   prev: FlightState,
   input: InputState,
   deltaSec: number,
+  controlSensitivity = 1,
 ): FlightState {
   const pitchInput = (input.pitchUp ? 1 : 0) - (input.pitchDown ? 1 : 0);
   const rollInput = (input.rollRight ? 1 : 0) - (input.rollLeft ? 1 : 0);
@@ -50,9 +51,9 @@ export function updateFlightState(
   const speedBlend = 1 - Math.exp(-deltaSec * 2);
   const nextVelocity = prev.velocityMs + (targetSpeed - prev.velocityMs) * speedBlend;
 
-  const pitchDelta = pitchInput * PITCH_RATE_DEG_PER_SEC * deltaSec;
-  const rollDelta = rollInput * ROLL_RATE_DEG_PER_SEC * deltaSec;
-  const yawDelta = yawInput * YAW_RATE_DEG_PER_SEC * deltaSec;
+  const pitchDelta = pitchInput * PITCH_RATE_DEG_PER_SEC * controlSensitivity * deltaSec;
+  const rollDelta = rollInput * ROLL_RATE_DEG_PER_SEC * controlSensitivity * deltaSec;
+  const yawDelta = yawInput * YAW_RATE_DEG_PER_SEC * controlSensitivity * deltaSec;
 
   const stabilizedPitch = prev.pitchDeg * (1 - AUTO_STABILITY_GAIN * deltaSec);
   const stabilizedRoll = prev.rollDeg * (1 - AUTO_STABILITY_GAIN * deltaSec);

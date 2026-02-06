@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "convert:terrain": "node scripts/convert-plateau-to-wireframe.mjs",
     "generate:city": "node scripts/generate-tokyo-cbd-wireframe.mjs",
-    "build:plateau:feature-collection": "node scripts/build-minato-real-feature-collection.mjs"
+    "build:plateau:feature-collection": "node scripts/build-minato-real-feature-collection.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "next": "16.1.6",
@@ -27,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   }
 }

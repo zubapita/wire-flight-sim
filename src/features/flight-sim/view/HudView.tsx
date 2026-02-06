@@ -1,11 +1,18 @@
-import { HudState } from "@/features/flight-sim/types/flightTypes";
+import { FlightWarnings, HudState } from "@/features/flight-sim/types/flightTypes";
 
 type Props = {
   hudState: HudState;
+  warnings: FlightWarnings;
   isPaused: boolean;
+  collisionBannerVisible: boolean;
 };
 
-export function HudView({ hudState, isPaused }: Props) {
+export function HudView({
+  hudState,
+  warnings,
+  isPaused,
+  collisionBannerVisible,
+}: Props) {
   return (
     <div className="hud-layer" aria-live="polite">
       <div className="hud-panel hud-left">
@@ -21,6 +28,11 @@ export function HudView({ hudState, isPaused }: Props) {
       <div className="hud-help">
         W/S:Throttle | Arrow:Pitch | A/D:Roll | Q/E:Yaw | Esc:Pause
       </div>
+      {warnings.stallRisk ? <div className="hud-warning hud-warning-stall">STALL RISK</div> : null}
+      {warnings.groundWarning ? (
+        <div className="hud-warning hud-warning-ground">GROUND PROXIMITY</div>
+      ) : null}
+      {collisionBannerVisible ? <div className="hud-collision">COLLISION - RESPAWNED</div> : null}
       {isPaused ? <div className="hud-pause">PAUSED</div> : null}
     </div>
   );

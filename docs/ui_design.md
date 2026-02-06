@@ -3,17 +3,18 @@
 ## 1. 画面一覧
 - `FlightScreen`（メイン飛行画面）
 - `PauseMenu`（一時停止メニュー）
-- `SettingsPanel`（キー設定・感度設定）
+- `SettingsPanel`（キー設定・感度設定・画質設定）
 - `TerrainStatusOverlay`（地形読込状態・障害時オーバーレイ）
-- `LicenseModal`（データ出典表示）
+- `LicensePanel`（データ出典表示）
 
 ## 2. レイアウト
 ### FlightScreen
 - 全画面: 3Dワイヤーフレーム表示
-- 左上: 速度/高度
-- 中央下: 水平儀・方位
-- 右上: スロットル・警告
-- 右下: ミニヘルプ（キー表示）
+- 左上: 速度/高度/方位
+- 右上: 姿勢/スロットル
+- 中央: `PAUSED` / `COLLISION - RESPAWNED` 表示
+- 中央下: 警告表示（`STALL RISK` / `GROUND PROXIMITY`）
+- 下部中央: キーヘルプ表示
 - 上部中央: 地形読込中バナー（`LOADING TERRAIN...`）
 
 ### TerrainStatusOverlay
@@ -24,19 +25,25 @@
 - セーフモード中は上部バナーに `SAFE MODE: TERRAIN DISABLED` を表示し、`TRY TERRAIN MODE` で通常再試行
 
 ### PauseMenu
-- 中央モーダル
-- 項目: 再開 / 設定 / ライセンス / タイトルへ戻る
+- `Esc` 押下で中央モーダル表示
+- 項目: `RESUME` / `SETTINGS` / `LICENSE`
+- `SETTINGS` 展開時:
+  - 感度スライダ
+  - 画質選択（Low/Medium/High）
+  - キー割当テキスト入力
+  - `RESET DEFAULTS`
+- `LICENSE` 展開時: PLATEAU出典とリンク表示
 
 ## 3. 視覚デザイン
 - 背景: 黒系
 - 線色: シアン/グリーン基調（レトロCRT風）
 - フォント: 等幅フォントを基本
-- エフェクト: 軽い走査線オーバーレイ（ON/OFF可）
+- 警告は色+テキストで表示
 
 ## 4. UXポリシー
-- 初回起動で操作説明を3行以内で提示
+- 初回起動で操作説明を1行表示
 - 難易度は固定（初心者向け）
-- 失敗時は即時再開可能（3秒以内）
+- 失敗時は即時再開可能（衝突後3秒の通知表示）
 - 地形読込失敗時は、画面遷移なしで同一画面から再試行できる
 
 ## 5. View責務境界
@@ -47,4 +54,4 @@
 ## 6. アクセシビリティ
 - 主要操作はキーボードのみで完結
 - 色覚差対応のためHUD警告は色+テキストで表示
-- フォントサイズを3段階で変更可能
+- PauseMenuは `role="dialog"` と `aria-modal="true"` を付与

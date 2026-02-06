@@ -10,7 +10,7 @@
 - [x] `scripts/convert-plateau-to-wireframe.mjs` にインフラ種別の出力属性（例: layer/type）を追加
 - [x] `TerrainModel` で属性付きデータを受け取り、描画用メッシュをレイヤー別に組み立て
 - [x] `SceneView` でレイヤー別描画（視認性のための色/線種/表示切替）を実装
-- [ ] 東京都心の実データ変換結果でE2E動作確認を完了する
+- [x] 東京都心の実データ変換結果でE2E動作確認を完了する（`http://localhost:3001` と `http://localhost:3001/?safeMode=1` を確認）
 
 ### 完了判定
 - [x] ビルのみではなく、少なくとも道路または橋梁のいずれかが同時表示される
@@ -20,7 +20,7 @@
 ## Phase 0: 基盤準備
 - [x] Next.js + TypeScript プロジェクト初期化
 - [x] Three.js導入
-- [ ] lint/test/buildパイプライン整備
+- [x] lint/test/buildパイプライン整備（`npm run lint` / `npm run typecheck` / `npm run test` / `npm run build`）
 - [ ] PLATEAUデータ取得手順の確定と出典表記文言の確定
 - [x] 地形前処理スクリプト作成（JSONワイヤーフレーム形式）
 
@@ -32,12 +32,12 @@
 - [x] HUD最低限表示（速度・高度・方位）
 
 ## Phase 2: プレイ継続性
-- [ ] 衝突判定とリスポーン
-- [ ] 一時停止/再開
-- [ ] 設定画面と永続化（localStorage）
-- [ ] エラーハンドリング（再試行/セーフモード）
+- [x] 衝突判定とリスポーン
+- [x] 一時停止/再開
+- [x] 設定画面と永続化（localStorage）
+- [x] エラーハンドリング（再試行/セーフモード）
 - 再試行導線とセーフモード起動（`SAFE MODE` ボタン / `?safeMode=1`）は実装済み
-- セーフモード時のE2E表示確認は未完了
+- セーフモード時のE2E表示確認は完了（`?safeMode=1` でSAFE MODEバナー表示を確認）
 
 ## Phase 3: データ最適化
 - [ ] チャンク読み込み + IndexedDBキャッシュ
@@ -46,7 +46,7 @@
 - [ ] ライセンス表示UIの最終化
 
 ## Phase 4: 品質保証・リリース
-- [ ] ユニットテスト（Model中心）
+- [x] ユニットテスト（Model中心）
 - [ ] API統合テスト
 - [ ] E2Eテスト（起動/飛行/衝突/再開）
 - [ ] Vercelデプロイ設定
