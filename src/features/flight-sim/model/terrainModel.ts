@@ -16,6 +16,7 @@ export type TerrainMesh = {
 };
 
 export type RawTerrainData = {
+  coordinateSystem?: "geographic" | "projected";
   vertices: number[][];
   edges: number[][];
   faces?: number[][];
@@ -180,7 +181,12 @@ function normalizeFaces(rawFaces: number[][]): Array<[number, number, number]> {
 
 export function mapRawTerrainData(raw: RawTerrainData): TerrainMesh {
   const rawVertices = Array.isArray(raw.vertices) ? raw.vertices : [];
-  const isGeographic = detectGeographicCoordinates(rawVertices);
+  const isGeographic =
+    raw.coordinateSystem === "geographic"
+      ? true
+      : raw.coordinateSystem === "projected"
+        ? false
+        : detectGeographicCoordinates(rawVertices);
 
   let lonOrigin = 0;
   let latOrigin = 0;

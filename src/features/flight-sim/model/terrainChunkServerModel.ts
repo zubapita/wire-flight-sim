@@ -20,6 +20,7 @@ type ChunkPayload = {
   gridX: number;
   gridZ: number;
   lod: number;
+  coordinateSystem: "projected";
   bbox: TerrainChunkDescriptor["bbox"];
   vertices: number[][];
   edges: number[][];
@@ -46,7 +47,8 @@ type ChunkDataset = {
 };
 
 const CHUNK_SIZE_METERS = 1400;
-const BOOTSTRAP_CHUNK_COUNT = 4;
+const BASE_BOOTSTRAP_CHUNK_COUNT = 4;
+const EXTRA_BOOTSTRAP_PER_LAYER = 2;
 
 let cachedDataset: ChunkDataset | null = null;
 
@@ -72,9 +74,12 @@ function parseArchive(raw: unknown): TerrainArchive {
   };
 }
 
-function buildPlanarCoordinates(vertices: number[][]): Array<{ x: number; z: number }> {
+function buildPlanarCoordinates(vertices: number[][]): {
+  coordinates: Array<{ x: number; z: number }>;
+  isGeographic: boolean;
+} {
   if (vertices.length === 0) {
-    return [];
+    return { coordinates: [], isGeographic: false };
   }
 
   const probablyGeographic =
@@ -89,7 +94,10 @@ function buildPlanarCoordinates(vertices: number[][]): Array<{ x: number; z: num
     }).length / vertices.length > 0.9;
 
   if (!probablyGeographic) {
-    return vertices.map((vertex) => ({ x: Number(vertex[0] ?? 0), z: Number(vertex[1] ?? 0) }));
+    return {
+      coordinates: vertices.map((vertex) => ({ x: Number(vertex[0] ?? 0), z: Number(vertex[2] ?? 0) })),
+      isGeographic: false,
+    };
   }
 
   let lonOrigin = 0;
@@ -104,10 +112,13 @@ function buildPlanarCoordinates(vertices: number[][]): Array<{ x: number; z: num
   const latScale = 110_540;
   const lonScale = 111_320 * Math.cos((latOrigin * Math.PI) / 180);
 
-  return vertices.map((vertex) => ({
-    x: (Number(vertex[0] ?? 0) - lonOrigin) * lonScale,
-    z: (Number(vertex[1] ?? 0) - latOrigin) * latScale,
-  }));
+  return {
+    coordinates: vertices.map((vertex) => ({
+      x: (Number(vertex[0] ?? 0) - lonOrigin) * lonScale,
+      z: (Number(vertex[1] ?? 0) - latOrigin) * latScale,
+    })),
+    isGeographic: true,
+  };
 }
 
 function getLod(gridX: number, gridZ: number): number {
@@ -160,7 +171,7 @@ function updateBbox(chunk: ChunkBuildState, point: [number, number, number]): vo
 
 function ensureVertex(
   chunk: ChunkBuildState,
-  archiveVertices: number[][],
+  archiveVertices: Array<[number, number, number]>,
   globalIndex: number,
 ): number | null {
   if (!Number.isInteger(globalIndex) || globalIndex < 0 || globalIndex >= archiveVertices.length) {
@@ -173,11 +184,7 @@ function ensureVertex(
   }
 
   const source = archiveVertices[globalIndex] ?? [0, 0, 0];
-  const vertex: [number, number, number] = [
-    Number(source[0] ?? 0),
-    Number(source[1] ?? 0),
-    Number(source[2] ?? 0),
-  ];
+  const vertex: [number, number, number] = [source[0], source[1], source[2]];
 
   const localIndex = chunk.vertices.length;
   chunk.vertices.push(vertex);
@@ -188,7 +195,7 @@ function ensureVertex(
 
 function mapEdgeToChunk(
   chunk: ChunkBuildState,
-  archiveVertices: number[][],
+  archiveVertices: Array<[number, number, number]>,
   edge: number[],
   layerName: string,
 ): void {
@@ -210,7 +217,7 @@ function mapEdgeToChunk(
 
 function mapFaceToChunk(
   chunk: ChunkBuildState,
-  archiveVertices: number[][],
+  archiveVertices: Array<[number, number, number]>,
   face: number[],
   layerName: string,
 ): void {
@@ -267,6 +274,7 @@ function dedupeChunk(chunk: ChunkBuildState): ChunkPayload {
     gridX: chunk.gridX,
     gridZ: chunk.gridZ,
     lod: chunk.lod,
+    coordinateSystem: "projected",
     bbox: chunk.bbox,
     vertices: chunk.vertices,
     edges,
@@ -284,7 +292,14 @@ function gridFromPlanarPoint(point: { x: number; z: number }): { gridX: number; 
 
 function buildDataset(archive: TerrainArchive): ChunkDataset {
   const chunkMap = new Map<string, ChunkBuildState>();
-  const planar = buildPlanarCoordinates(archive.vertices);
+  const { coordinates: planar, isGeographic } = buildPlanarCoordinates(archive.vertices);
+  const projectedVertices: Array<[number, number, number]> = archive.vertices.map((vertex, index) => {
+    const point = planar[index] ?? { x: 0, z: 0 };
+    if (isGeographic) {
+      return [point.x, Number(vertex[2] ?? 0), point.z];
+    }
+    return [Number(vertex[0] ?? 0), Number(vertex[1] ?? 0), Number(vertex[2] ?? 0)];
+  });
 
   const sourceLayers = archive.layers ?? { other: { edges: archive.edges, faces: archive.faces } };
 
@@ -302,7 +317,7 @@ function buildDataset(archive: TerrainArchive): ChunkDataset {
       const center = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
       const grid = gridFromPlanarPoint(center);
       const chunk = ensureChunk(chunkMap, grid.gridX, grid.gridZ);
-      mapEdgeToChunk(chunk, archive.vertices, edge, layerName);
+      mapEdgeToChunk(chunk, projectedVertices, edge, layerName);
     }
 
     const faces = Array.isArray(layerData.faces) ? layerData.faces : [];
@@ -322,7 +337,7 @@ function buildDataset(archive: TerrainArchive): ChunkDataset {
       };
       const grid = gridFromPlanarPoint(center);
       const chunk = ensureChunk(chunkMap, grid.gridX, grid.gridZ);
-      mapFaceToChunk(chunk, archive.vertices, face, layerName);
+      mapFaceToChunk(chunk, projectedVertices, face, layerName);
     }
   }
 
@@ -341,15 +356,47 @@ function buildDataset(archive: TerrainArchive): ChunkDataset {
     }))
     .filter((descriptor) => isValidChunkId(descriptor.chunkId));
 
-  const bootstrapChunkIds = descriptors
+  const chunkById = new Map(chunks.map((chunk) => [chunk.chunkId, chunk]));
+  const nearCenter = descriptors
     .slice()
     .sort((a, b) => {
       const da = a.gridX * a.gridX + a.gridZ * a.gridZ;
       const db = b.gridX * b.gridX + b.gridZ * b.gridZ;
       return da - db;
-    })
-    .slice(0, BOOTSTRAP_CHUNK_COUNT)
-    .map((descriptor) => descriptor.chunkId);
+    });
+
+  const bootstrapSet = new Set(nearCenter.slice(0, BASE_BOOTSTRAP_CHUNK_COUNT).map((descriptor) => descriptor.chunkId));
+
+  const pickLayerDenseChunks = (layerName: string) => {
+    const dense = nearCenter
+      .slice(0, 64)
+      .map((descriptor) => {
+        const payload = chunkById.get(descriptor.chunkId);
+        const layerEdges = payload?.layers?.[layerName]?.edges?.length ?? 0;
+        return {
+          chunkId: descriptor.chunkId,
+          layerEdges,
+          distanceRank: descriptor.gridX * descriptor.gridX + descriptor.gridZ * descriptor.gridZ,
+        };
+      })
+      .filter((row) => row.layerEdges > 0)
+      .sort((a, b) => {
+        if (b.layerEdges !== a.layerEdges) {
+          return b.layerEdges - a.layerEdges;
+        }
+        return a.distanceRank - b.distanceRank;
+      })
+      .slice(0, EXTRA_BOOTSTRAP_PER_LAYER);
+
+    for (const row of dense) {
+      bootstrapSet.add(row.chunkId);
+    }
+  };
+
+  pickLayerDenseChunks("building");
+  pickLayerDenseChunks("water");
+
+  const bootstrapChunkIds = Array.from(bootstrapSet);
 
   return {
     manifest: {

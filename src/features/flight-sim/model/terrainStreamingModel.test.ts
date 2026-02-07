@@ -67,7 +67,7 @@ describe("terrainStreamingModel", () => {
     expect(terrain.edges.length).toBeLessThanOrEqual(5000);
   });
 
-  it("drops far lod-2 chunk for low quality", () => {
+  it("keeps far lod-2 chunk to preserve network continuity", () => {
     const nearChunk: LoadedTerrainChunk = {
       descriptor: createDescriptor("tokyo_0_0", 0),
       mesh: createDenseMesh(40),
@@ -90,6 +90,6 @@ describe("terrainStreamingModel", () => {
     };
 
     const terrain = buildTerrainFromLoadedChunks([nearChunk, farChunk], "low", { x: 0, y: 0, z: 0 });
-    expect(terrain.edges.length).toBe(40);
+    expect(terrain.edges.length).toBe(80);
   });
 });

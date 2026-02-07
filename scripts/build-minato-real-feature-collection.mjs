@@ -11,23 +11,37 @@ const DEFAULT_CITYGML_ZIP = path.join(
 );
 const DEFAULT_RAILWAY_GEOJSON = path.join(process.cwd(), "docs/data/minato_related_railway.geojson");
 const DEFAULT_OUTPUT = path.join(process.cwd(), "docs/data/minato_plateau_feature_collection.json");
+const DEFAULT_MESH_CODES = [
+  "53393567",
+  "53393568",
+  "53393569",
+  "53393640",
+  "53393641",
+  "53393650",
+  "53393651",
+  "53393652",
+  "53393660",
+  "53393661",
+  "53393662",
+  "53393670",
+];
 
-const CITY_GML_SOURCES = [
+const CITY_GML_LAYER_PATTERNS = [
   {
-    entry: "udx/bldg/53393661_bldg_6697_op.gml",
     layer: "building",
+    matcher: /^udx\/bldg\/.+_bldg_.+_op\.gml$/,
   },
   {
-    entry: "udx/tran/53393661_tran_6697_op.gml",
     layer: "road",
+    matcher: /^udx\/tran\/.+_tran_.+_op\.gml$/,
   },
   {
-    entry: "udx/brid/53393661_brid_6697_op.gml",
     layer: "bridge",
+    matcher: /^udx\/brid\/.+_brid_.+_op\.gml$/,
   },
   {
-    entry: "udx/fld/pref/furukawa_shibuyagawa-furukawa-etc/53393567_fld_6697_l2_op.gml",
     layer: "water",
+    matcher: /^udx\/fld\/.+_fld_.+_op\.gml$/,
   },
 ];
 
@@ -36,6 +50,7 @@ function parseArgs(argv) {
     citygmlZip: DEFAULT_CITYGML_ZIP,
     railwayGeojson: DEFAULT_RAILWAY_GEOJSON,
     output: DEFAULT_OUTPUT,
+    meshCodes: DEFAULT_MESH_CODES,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -52,6 +67,14 @@ function parseArgs(argv) {
     }
     if (token === "--output") {
       args.output = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (token === "--mesh-codes") {
+      args.meshCodes = String(argv[i + 1] ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => /^\d{8}$/.test(value));
       i += 1;
       continue;
     }
@@ -153,6 +176,46 @@ function readZipEntry(zipPath, entryPath) {
   });
 }
 
+function listZipEntries(zipPath) {
+  const raw = execFileSync("unzip", ["-Z1", zipPath], {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024 * 64,
+  });
+
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function resolveCityGmlSources(zipPath, meshCodes) {
+  const entries = listZipEntries(zipPath);
+  const sources = [];
+  const allowedCodes = new Set(meshCodes);
+
+  for (const entry of entries) {
+    const codeMatch = entry.match(/\/(\d{8})_[^/]+_op\.gml$/);
+    if (!codeMatch) {
+      continue;
+    }
+    if (allowedCodes.size > 0 && !allowedCodes.has(codeMatch[1])) {
+      continue;
+    }
+
+    for (const pattern of CITY_GML_LAYER_PATTERNS) {
+      if (pattern.matcher.test(entry)) {
+        sources.push({
+          entry,
+          layer: pattern.layer,
+        });
+        break;
+      }
+    }
+  }
+
+  return sources.sort((a, b) => a.entry.localeCompare(b.entry));
+}
+
 async function loadRailwayFeatures(railwayGeojsonPath) {
   const raw = await readFile(path.resolve(railwayGeojsonPath), "utf8");
   const data = JSON.parse(raw);
@@ -172,16 +235,24 @@ async function loadRailwayFeatures(railwayGeojsonPath) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  const cityGmlSources = resolveCityGmlSources(path.resolve(args.citygmlZip), args.meshCodes);
+  if (cityGmlSources.length === 0) {
+    throw new Error("No CityGML sources matched expected patterns in zip.");
+  }
 
   const allFeatures = [];
-  for (const source of CITY_GML_SOURCES) {
+  for (const source of cityGmlSources) {
     const xml = readZipEntry(path.resolve(args.citygmlZip), source.entry);
     const features = extractPolygonFeaturesFromCityGml(xml, source.layer, source.entry);
-    allFeatures.push(...features);
+    for (const feature of features) {
+      allFeatures.push(feature);
+    }
   }
 
   const railwayFeatures = await loadRailwayFeatures(args.railwayGeojson);
-  allFeatures.push(...railwayFeatures);
+  for (const feature of railwayFeatures) {
+    allFeatures.push(feature);
+  }
 
   const output = {
     type: "FeatureCollection",
@@ -192,9 +263,10 @@ async function main() {
 
   const outputPath = path.resolve(args.output);
   await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+  await writeFile(outputPath, `${JSON.stringify(output)}\n`, "utf8");
 
   console.log(`Generated ${outputPath}`);
+  console.log(`CityGML sources: ${cityGmlSources.length}`);
   console.log(`Features: ${allFeatures.length}`);
 }
 
