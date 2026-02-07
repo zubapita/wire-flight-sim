@@ -46,7 +46,7 @@ type CacheRecord = {
 const CHUNK_ID_PATTERN = /^[a-z0-9_]+$/;
 const CACHE_DB_NAME = "flight-sim-terrain-cache";
 const CACHE_STORE_NAME = "chunk-cache";
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_MAX_ENTRIES = 48;
 const CACHE_MAX_BYTES = 25 * 1024 * 1024;
 
@@ -85,6 +85,10 @@ function distanceSqToChunk(point: Vec3, descriptor: TerrainChunkDescriptor): num
 function normalizeRawTerrainData(raw: unknown): RawTerrainData {
   const value = raw as Partial<RawTerrainData>;
   return {
+    coordinateSystem:
+      value.coordinateSystem === "geographic" || value.coordinateSystem === "projected"
+        ? value.coordinateSystem
+        : undefined,
     vertices: Array.isArray(value.vertices) ? value.vertices : [],
     edges: Array.isArray(value.edges) ? value.edges : [],
     faces: Array.isArray(value.faces) ? value.faces : [],
@@ -129,7 +133,16 @@ async function openCacheDb(): Promise<IDBDatabase | null> {
     const request = indexedDB.open(CACHE_DB_NAME, CACHE_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(CACHE_STORE_NAME)) {
+      const upgradeTransaction = request.transaction;
+      if (!upgradeTransaction) {
+        return;
+      }
+
+      // Always reset cached chunks on schema version change to avoid stale geometry.
+      if (db.objectStoreNames.contains(CACHE_STORE_NAME)) {
+        const store = upgradeTransaction.objectStore(CACHE_STORE_NAME);
+        store.clear();
+      } else {
         db.createObjectStore(CACHE_STORE_NAME, { keyPath: "chunkId" });
       }
     };
@@ -252,15 +265,7 @@ function buildLodTerrain(chunks: LoadedTerrainChunk[], graphicsQuality: Graphics
     return distanceSqToChunk(flightPosition, a.descriptor) - distanceSqToChunk(flightPosition, b.descriptor);
   });
 
-  const kept: TerrainMesh[] = [];
-  for (const item of sorted) {
-    if (item.descriptor.lod >= 2 && graphicsQuality === "low") {
-      continue;
-    }
-    kept.push(item.mesh);
-  }
-
-  const merged = mergeTerrainMeshes(kept);
+  const merged = mergeTerrainMeshes(sorted.map((item) => item.mesh));
   return limitTerrainEdges(merged, EDGE_CAP_BY_QUALITY[graphicsQuality]);
 }
 
